@@ -22,6 +22,10 @@ def generate_report():
     print("Initializing environment...")
     os.makedirs("/home/carlos/Documents/github/msc_ai_thesis_experiments/html_reports", exist_ok=True)
     
+    # Enforce pure determinism for documentation consistency
+    np.random.seed(42)
+    torch.manual_seed(42)
+    
     # We use a static seed to ensure reproducible interesting behaviors (units moving, etc)
     env = LuxTorchRLEnv(batch_size=1, max_steps=200, match_count=1, seed=1994)
     td = env.reset()
@@ -61,8 +65,8 @@ def generate_report():
     else:
         components_html = "<p class='text-muted'>No dynamic reward components available in this step.</p>"
 
-    # 3. Extract 9 Channels Observation (select an active unit if possible, else 0)
-    obs = td["agents", "observation"][0].cpu().numpy() # [U, 9, 24, 24]
+    # 3. Extract 12 Channels Observation (select an active unit if possible, else 0)
+    obs = td["agents", "observation"][0].cpu().numpy() # [U, 12, 24, 24]
     
     # Picking the unit that has the highest energy to guarantee it is active and on map
     energy_levels = obs[:, 2, :, :].sum(axis=(1,2))
@@ -79,19 +83,23 @@ def generate_report():
     grid_c3 = obs[:, 3, :, :]
     print(f"Global Batch Channel 3 Mean across all agents: {np.mean(grid_c3):.8f}\n")
 
-    # 4. Generate Images for the 9 Channels
-    cmaps = ['viridis', 'viridis', 'magma', 'magma', 'viridis', 'viridis', 'viridis', 'plasma', 'spring']
+    # 4. Generate Images for the 12 Channels
+    cmaps = ['viridis', 'viridis', 'magma', 'magma', 'viridis', 'viridis', 'viridis', 'plasma', 'spring', 'cool', 'inferno', 'bwr']
     channel_images = []
     
-    for i in range(9):
+    for i in range(12):
         fig, ax = plt.subplots(figsize=(2.5, 2.5))
         
-        # Float numerical channels (Energy) should auto-scale to display variance dynamically
-        if i in [2, 3]:
-            im = ax.imshow(channels_obs[i], cmap=cmaps[i])
+        # Float numerical channels (Energy, Step Count, Score Diff) should auto-scale to display variance dynamically
+        if i in [2, 3, 10, 11]:
+            # Score Diff uses diverging colormap
+            if i == 11:
+                im = ax.imshow(channels_obs[i].T, cmap=cmaps[i], vmin=-1.0, vmax=1.0)
+            else:
+                im = ax.imshow(channels_obs[i].T, cmap=cmaps[i])
         else:
             # Binary masks stick to absolute 0-1 scale
-            im = ax.imshow(channels_obs[i], cmap=cmaps[i], vmin=0.0, vmax=1.0)
+            im = ax.imshow(channels_obs[i].T, cmap=cmaps[i], vmin=0.0, vmax=1.0)
             
         ax.axis('off')
         
@@ -149,7 +157,7 @@ def generate_report():
         <p class="text-muted">Below is the exact specification and heatmap snapshot drawn dynamically from the Python TensorDict.</p>
 
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <!-- C0 -->
                 <div class="card channel-card p-3">
                     <div class="d-flex justify-content-between">
@@ -206,7 +214,7 @@ def generate_report():
                 </div>
             </div>
             
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <!-- C5 -->
                 <div class="card channel-card p-3">
                     <div class="d-flex justify-content-between">
@@ -248,6 +256,42 @@ def generate_report():
                             <p class="mb-2 text-muted"><strong>Values:</strong> Singular `1.0` binary.</p>
                         </div>
                         <img src="data:image/png;base64,{channel_images[8]}" class="img-fluid-channel" style="width: 150px;">
+                    </div>
+                </div>
+
+                <!-- C10 -->
+                <div class="card channel-card p-3">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5>Channel 10: Timeline Percent ⏳</h5>
+                            <p class="mb-2 text-muted"><strong>Values:</strong> Float percentage</p>
+                        </div>
+                        <img src="data:image/png;base64,{channel_images[10]}" class="img-fluid-channel" style="width: 150px;">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+               <!-- EXTRA CHANNELS COLUMN -->
+                <!-- C9 -->
+                <div class="card channel-card p-3">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5>Channel 9: Ghost Coordinate 👻</h5>
+                            <p class="mb-2 text-muted"><strong>Values:</strong> Last Action Tracking</p>
+                        </div>
+                        <img src="data:image/png;base64,{channel_images[9]}" class="img-fluid-channel" style="width: 150px;">
+                    </div>
+                </div>
+                
+                <!-- C11 -->
+                <div class="card channel-card p-3">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5>Channel 11: Score Differential 👑</h5>
+                            <p class="mb-2 text-muted"><strong>Values:</strong> Float [-1.0, 1.0]</p>
+                        </div>
+                        <img src="data:image/png;base64,{channel_images[11]}" class="img-fluid-channel" style="width: 150px;">
                     </div>
                 </div>
             </div>

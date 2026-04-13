@@ -1,0 +1,13 @@
+-e ./BenchMARL
+torchrl
+torchvision==0.25.0
+vmas
+pettingzoo[all]
+wandb[media]
+weave
+luxai-s3 @ git+https://github.com/Lux-AI-Challenge/Lux-Design-S3.git@c6d1e665d12a467b299fb586b3f876e47847746b#subdirectory=src
+pygame>=2.0.0
+jupyterlab
+stable-baselines3
+tensorboard
+#sympy==1.13.3  # 1.14+ breaks torch._dynamo import chain with torch 2.11
