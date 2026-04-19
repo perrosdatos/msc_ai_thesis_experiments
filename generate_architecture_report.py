@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import os
+import subprocess
+import datetime
 
 def trace_model(model, input_tensor):
     trace = []
@@ -82,7 +84,7 @@ def main():
     # 1. Define the architecture matching `lux_sweep` CNN specs
     # cnn_num_cells: [32, 32, 32], kernel_size: 3, strides: 1, padding: 0
     cnn = nn.Sequential(
-        nn.Conv2d(in_channels=12, out_channels=32, kernel_size=3, stride=1, padding=0),
+        nn.Conv2d(in_channels=14, out_channels=32, kernel_size=3, stride=1, padding=0),
         nn.Tanh(),
         nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=0),
         nn.Tanh(),
@@ -91,8 +93,8 @@ def main():
         nn.Flatten()
     )
     
-    # Batch=1, Channels=12, Max_Units=1 is handled implicitly, we trace pure image resolution 24x24
-    dummy_input = torch.zeros(1, 12, 24, 24)
+    # Batch=1, Channels=14, Max_Units=1 is handled implicitly, we trace pure image resolution 24x24
+    dummy_input = torch.zeros(1, 14, 24, 24)
     cnn_trace, cnn_out = trace_model(cnn, dummy_input)
     
     # 2. Define the MLP block
@@ -135,7 +137,7 @@ def main():
 <body class="py-5">
     <div class="container">
         <h1 class="display-6 mb-2 fw-bold text-primary">Model Architecture Radiography</h1>
-        <p class="lead text-muted mb-5">Tracing the exact <code>MultiAgentConvNet</code> topology deployed inside BenchMARL mapping the dynamic `12-Channel` environment vector.</p>
+        <p class="lead text-muted mb-5">Tracing the exact <code>MultiAgentConvNet</code> topology deployed inside BenchMARL mapping the dynamic `14-Channel` environment vector.</p>
 
         <div class="alert alert-info shadow-sm d-flex justify-content-between align-items-center mb-5">
             <div>
@@ -170,7 +172,7 @@ def main():
             <div class="card-body text-center" style="background-color: #1a1a1a; overflow-y: auto;">
                 <div class="mermaid">
                     graph TD
-                    Env(("🌍 12-Channel Environment State Matrix")) --> CNN["🧠 Shared CNN Brain<br/>(10,368 flattened nodes)"]
+                    Env(("🌍 14-Channel Environment State Matrix<br/>(+ Fog-of-War Memory + Agent Trajectory)")) --> CNN["🧠 Shared CNN Brain<br/>(10,368 flattened nodes)"]
                     CNN -->|Linear Projection| Z["📉 Latent State Embedding (32 nodes)"]
                     
                     Z -->|Diverges Input| Actor["🕹️ Actor Head Policy<br/>(Multi-Agent Network)"]
@@ -195,12 +197,26 @@ def main():
 </html>
 """
 
-    os.makedirs("html_reports", exist_ok=True)
-    with open("html_reports/lux_cnn_architecture.html", "w") as f:
+    out_dir = os.environ.get("REPORT_OUT_DIR")
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+        report_path = os.path.join(out_dir, "lux_cnn_architecture.html")
+    else:
+        try:
+            git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).strip().decode('utf-8')
+        except Exception:
+            git_hash = "unknown_commit"
+            
+        stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        out_dir = f"html_reports/{git_hash}_{stamp}"
+        os.makedirs(out_dir, exist_ok=True)
+        report_path = os.path.join(out_dir, "lux_cnn_architecture.html")
+    
+    with open(report_path, "w") as f:
         f.write(html_content)
         
     print(f"✅ Extracted Model Graph and calculated parameters.")
-    print(f"✅ Generated Architecture Report: html_reports/lux_cnn_architecture.html")
+    print(f"✅ Generated Architecture Report: {report_path}")
 
 if __name__ == "__main__":
     main()
