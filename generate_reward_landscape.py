@@ -7,7 +7,7 @@ import base64
 
 # Add core path to import the algorithm
 sys.path.append(os.path.abspath("/home/carlos/Documents/github/msc_ai_thesis_experiments/BenchMARL"))
-from benchmarl.environments.lux.reward_exploration import compute_shaped_rewards
+from benchmarl.environments.lux.reward_exploration import compute_shaped_rewards_v2
 
 def get_base64_image(fig):
     buf = BytesIO()
@@ -63,7 +63,7 @@ def calculate_reward_surface():
     current_team_pos[:, 0, 1] = y_coords.flatten()
 
     # Exclusively use NATIVE REWARD SIMULATION
-    shaped_rewards, components = compute_shaped_rewards(
+    shaped_global, shaped_local, components = compute_shaped_rewards_v2(
         current_team_mask,
         current_team_pos,
         actions,
@@ -76,8 +76,11 @@ def calculate_reward_surface():
         step_count
     )
     
+    # Combine global + local reward for Agent 0
+    total_shaped_rewards = shaped_global + shaped_local[:, 0]
+    
     # Reshape the output mathematically
-    surface = shaped_rewards.reshape((size, size))
+    surface = total_shaped_rewards.reshape((size, size))
     
     # Visualize Heatmap
     fig, ax = plt.subplots(figsize=(8, 7))
@@ -110,7 +113,11 @@ def calculate_reward_surface():
     return b64_img
 
 def append_to_html_report(b64_image):
-    report_path = "/home/carlos/Documents/github/msc_ai_thesis_experiments/html_reports/lux_input_report.html"
+    out_dir = os.environ.get("REPORT_OUT_DIR")
+    if out_dir:
+        report_path = os.path.join(out_dir, "lux_input_report.html")
+    else:
+        report_path = "/home/carlos/Documents/github/msc_ai_thesis_experiments/html_reports/lux_input_report.html"
     
     # Read current report
     with open(report_path, "r", encoding="utf-8") as f:
@@ -128,8 +135,10 @@ def append_to_html_report(b64_image):
         </div>
     """
     
-    # Replace the end to inject our section before the final container div closes
-    if "</body>" in html:
+    # Replace the end to inject our section at the bottom of the container
+    if "<!-- Image Modal -->" in html:
+        html = html.replace("<!-- Image Modal -->", new_section + "\n    <!-- Image Modal -->")
+    elif "</body>" in html:
         html = html.replace("</body>", new_section + "\n</body>")
     
     with open(report_path, "w", encoding="utf-8") as f:

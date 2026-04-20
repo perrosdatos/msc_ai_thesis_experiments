@@ -14,6 +14,7 @@ import datetime
 sys.path.append(os.path.abspath("/home/carlos/Documents/github/msc_ai_thesis_experiments/BenchMARL"))
 from benchmarl.environments.lux.lux_env import LuxTorchRLEnv
 
+SEED_NUMBER = 1994
 def get_base64_image(fig):
     buf = BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=90)
@@ -33,11 +34,11 @@ def generate_report():
     photo_save_path = os.path.join(out_dir, "env_photo.png")
     
     # Enforce pure determinism for documentation consistency
-    np.random.seed(42)
-    torch.manual_seed(42)
+    np.random.seed(SEED_NUMBER)
+    torch.manual_seed(SEED_NUMBER)
     
     # We use a static seed to ensure reproducible interesting behaviors (units moving, etc)
-    env = LuxTorchRLEnv(batch_size=1, max_steps=200, match_count=1, seed=999, reward_version="v2")
+    env = LuxTorchRLEnv(batch_size=1, max_steps=200, match_count=1, seed=SEED_NUMBER, reward_version="v2")
     
     moth_dir = "/home/carlos/Documents/github/msc_ai_thesis_marl_lux"
     if moth_dir not in sys.path:
@@ -115,15 +116,15 @@ def generate_report():
     grid_c3 = obs[:, 3, :, :]
     print(f"Global Batch Channel 3 Mean across all agents: {np.mean(grid_c3):.8f}\n")
 
-    # 4. Generate Images for the 14 Channels
-    cmaps = ['viridis', 'viridis', 'magma', 'magma', 'viridis', 'viridis', 'viridis', 'plasma', 'spring', 'cool', 'inferno', 'bwr', 'RdPu', 'Blues']
+    # 4. Generate Images for the 16 Channels
+    cmaps = ['viridis', 'viridis', 'magma', 'magma', 'viridis', 'viridis', 'viridis', 'plasma', 'spring', 'cool', 'inferno', 'bwr', 'RdPu', 'Blues', 'cividis', 'Greens']
     channel_images = []
     
-    for i in range(14):
+    for i in range(16):
         fig, ax = plt.subplots(figsize=(2.5, 2.5))
         
         # Float numerical channels
-        if i in [2, 3, 10, 11, 12, 13]:
+        if i in [2, 3, 10, 11, 12, 13, 14, 15]:
             if i == 11:
                 im = ax.imshow(channels_obs[i].T, cmap=cmaps[i], vmin=-1.0, vmax=1.0)
             else:
@@ -190,9 +191,10 @@ def generate_report():
             </div>
             
             <div class="col-md-4">
-                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 5: Asteroids</h5></div><img src="data:image/png;base64,{channel_images[5]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 5: Asteroids 🌑</h5></div><img src="data:image/png;base64,{channel_images[5]}" class="img-fluid-channel" style="width: 150px;"></div></div>
                 <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 6: Sensor FoW</h5></div><img src="data:image/png;base64,{channel_images[6]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card relic-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 7: Relic Nodes 🌟</h5></div><img src="data:image/png;base64,{channel_images[7]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card relic-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 7: Relic Nodes ☀️</h5></div><img src="data:image/png;base64,{channel_images[7]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card relic-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 14: Relic Memory 🌟</h5><p class="mb-2 text-muted"><strong>Values:</strong> Time Decay Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[14]}" class="img-fluid-channel" style="width: 150px;"></div></div>
                 <div class="card channel-card self-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 8: Self Indicator 🎯</h5></div><img src="data:image/png;base64,{channel_images[8]}" class="img-fluid-channel" style="width: 150px;"></div></div>
                 <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 10: Timeline ⏳</h5></div><img src="data:image/png;base64,{channel_images[10]}" class="img-fluid-channel" style="width: 150px;"></div></div>
             </div>
@@ -200,6 +202,7 @@ def generate_report():
             <div class="col-md-4">
                 <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 9: Ghost Coord 👻</h5></div><img src="data:image/png;base64,{channel_images[9]}" class="img-fluid-channel" style="width: 150px;"></div></div>
                 <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 11: Score Diff 👑</h5></div><img src="data:image/png;base64,{channel_images[11]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 15: Points Delta 💰</h5><p class="mb-2 text-muted"><strong>Values:</strong> Uniform Reward Harvest Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[15]}" class="img-fluid-channel" style="width: 150px;"></div></div>
                 <div class="card channel-card memory-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 12: Memory Stigmergy 🧠</h5><p class="mb-2 text-muted"><strong>Values:</strong> Time Decay Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[12]}" class="img-fluid-channel" style="width: 150px;"></div></div>
                 <div class="card channel-card trajectory-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 13: Agent Trajectory 👣</h5><p class="mb-2 text-muted"><strong>Values:</strong> Egocentric Time Decay [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[13]}" class="img-fluid-channel" style="width: 150px;"></div></div>
             </div>

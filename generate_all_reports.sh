@@ -14,3 +14,4 @@ mkdir -p "$REPORT_OUT_DIR"
 
 python generate_documentation.py
 python generate_architecture_report.py
+python generate_reward_landscape.py
