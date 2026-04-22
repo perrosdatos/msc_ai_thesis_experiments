@@ -212,3 +212,6 @@ mappo_match_cnn*/
 
 # Jupyter Temp
 notebooks/
+html_reports/
+local-data/
+reports/
