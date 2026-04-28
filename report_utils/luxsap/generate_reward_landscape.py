@@ -6,8 +6,9 @@ from io import BytesIO
 import base64
 
 # Add core path to import the algorithm
-sys.path.append(os.path.abspath("/home/carlos/Documents/github/msc_ai_thesis_experiments/BenchMARL"))
-from benchmarl.environments.lux.reward_exploration import compute_shaped_rewards_v2
+benchmarl_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../BenchMARL"))
+sys.path.append(benchmarl_dir)
+from benchmarl.environments.lux.reward_combat import compute_combat_rewards
 
 def get_base64_image(fig):
     buf = BytesIO()
@@ -17,7 +18,7 @@ def get_base64_image(fig):
 
 def calculate_reward_surface():
     """
-    Simulates the exact logic from benchmarl/environments/lux/reward_exploration.py
+    Simulates the logic from reward_combat.py
     for a single agent moving across every coordinate of a 24x24 grid.
     """
     size = 24
@@ -46,7 +47,7 @@ def calculate_reward_surface():
     delta_points = np.zeros(B, dtype=np.float32)
     delta_visible = np.zeros(B, dtype=np.int32)
     delta_energy = np.zeros((B, 16), dtype=np.float32)
-    delta_energy[:, 0] = 5.0 # Positive energy delta to strictly simulate Farming conditions if on a node
+    delta_energy[:, 0] = 5.0 # Positive energy delta
     
     spawn_pos = np.full((B, 2), spawn, dtype=np.int32)
     known_relic_mask = np.ones((B, len(relics)), dtype=bool)
@@ -62,8 +63,13 @@ def calculate_reward_surface():
     current_team_pos[:, 0, 0] = x_coords.flatten()
     current_team_pos[:, 0, 1] = y_coords.flatten()
 
-    # Exclusively use NATIVE REWARD SIMULATION
-    shaped_global, shaped_local, components = compute_shaped_rewards_v2(
+    # Combat specific dummies
+    footprint_map = np.zeros((B, 24, 24), dtype=np.float32)
+    delta_masks = np.zeros((B, 2, 16), dtype=np.int16)
+    all_positions = np.zeros((B, 2, 16, 2), dtype=np.int32)
+
+    # Exclusively use COMBAT REWARD SIMULATION
+    shaped_global, shaped_local, components = compute_combat_rewards(
         current_team_mask,
         current_team_pos,
         actions,
@@ -73,7 +79,10 @@ def calculate_reward_surface():
         spawn_pos,
         known_relic_mask,
         known_relic_pos,
-        step_count
+        step_count,
+        footprint_map,
+        delta_masks,
+        all_positions
     )
     
     # Combine global + local reward for Agent 0
@@ -87,14 +96,14 @@ def calculate_reward_surface():
     cmap = plt.cm.get_cmap('plasma')
     im = ax.imshow(surface.T, cmap=cmap, origin='lower')
     
-    # Annotate Relics & Spawn (Only plot the centers to avoid visual clutter)
+    # Annotate Relics & Spawn
     ax.scatter(relic_centers[:, 0], relic_centers[:, 1], c='gold', marker='*', s=300, edgecolor='black', label="Relic Center")
     ax.scatter(spawn[0], spawn[1], c='cyan', marker='X', s=150, edgecolor='black', label="Spawn Point")
     
     # Contour lines to show gradient paths
     ax.contour(surface.T, levels=15, colors='white', alpha=0.3)
     
-    ax.set_title("Dense Exploration Reward Landscape (Vector Pathing)", color='white', fontsize=14)
+    ax.set_title("Combat + Dense Exploration Reward Landscape", color='white', fontsize=14)
     ax.set_xlabel("X coordinate")
     ax.set_ylabel("Y coordinate")
     plt.colorbar(im, label="Theoretical Step Reward")
@@ -115,20 +124,23 @@ def calculate_reward_surface():
 def append_to_html_report(b64_image):
     out_dir = os.environ.get("REPORT_OUT_DIR")
     if out_dir:
-        report_path = os.path.join(out_dir, "lux_input_report.html")
+        report_path = os.path.join(out_dir, "luxsap_input_report.html")
     else:
-        report_path = "/home/carlos/Documents/github/msc_ai_thesis_experiments/html_reports/lux_input_report.html"
+        report_path = "/home/carlos/Documents/github/msc_ai_thesis_experiments/html_reports/luxsap_input_report.html"
     
-    # Read current report
-    with open(report_path, "r", encoding="utf-8") as f:
-        html = f.read()
+    try:
+        with open(report_path, "r", encoding="utf-8") as f:
+            html = f.read()
+    except Exception:
+        print(f"Could not find {report_path} to append to. Generating a standalone file instead.")
+        html = "<html><body></body></html>"
         
     # Construct new section
     new_section = f"""
-        <h3 class="section-header text-info mt-5">4. Theoretical Reward Landscape</h3>
-        <p class="text-muted">The Dense Exploration Reward uses `Manhattan Distance` proximity to known relics, balanced by a centrifugal <b>swarm dispersion pressure</b> requiring agents to spread out to maximize exploration. Furthermore, a <b>Greedy VIP Assignment algorithm</b> restricts mining rewards to the closest 4 agents per relic. Any excess agents approaching a fully manned relic within 8 tiles receive an explicit mathematically-scaling <code>overcrowding_penalty</code>.</p>
+        <h3 class="section-header text-danger mt-5">4. Theoretical Reward Landscape (Combat + Exploration)</h3>
+        <p class="text-muted">This heatmap showcases the fundamental pull of the environment. In addition to relic exploration, agents are subject to explicit combat modifiers: <code>combat_kill</code> and <code>combat_death</code>. The landscape here simulates the exploration baseline, mapping out the centripetal and centrifugal forces guiding unit pathing even before dynamic combat occurs.</p>
         <div class="alert alert-warning">
-            <strong>Context Simulation:</strong> This matrix assumes the agent chose Action <code>0</code> (Center/Stagnation) at every coordinate tile. Areas outside of Relic Tails strictly apply the <code>Stagnation Penalty (-0.05)</code>, plunging their reward curve drastically downward. However, within distance of invisible <code>Relic Node Tails</code> surrounding the main stars, stagnation is forgiven and transforms into a positive <code>Farming Bonus (+0.01)</code>, creating elevated reward plateaus explicitly contouring the Relic tail structures. Since only 1 agent is simulated in this matrix, the Greedy VIP Assignment grants it full access to any relic it approaches without ever triggering the overcrowding penalty.
+            <strong>Context Simulation:</strong> Assuming Agent 0 idles across coordinates. The landscape inherits all V2 exploration characteristics (overcrowding, dispersion, farming limits) but uses the fully extended <code>compute_combat_rewards</code> mathematical model from <code>reward_combat.py</code>.
         </div>
         <div class="text-center mb-5 mt-4">
             <img src="data:image/png;base64,{b64_image}" class="img-fluid rounded" style="box-shadow: 0 4px 20px rgba(0,0,0,0.5); max-width: 800px;">
@@ -144,7 +156,7 @@ def append_to_html_report(b64_image):
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(html)
         
-    print("✅ Successfully appended theoretical mapped reward landscape to report!")
+    print("✅ Successfully appended theoretical combat mapped reward landscape to report!")
 
 if __name__ == "__main__":
     b64 = calculate_reward_surface()

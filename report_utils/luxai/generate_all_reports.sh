@@ -12,6 +12,6 @@ export REPORT_OUT_DIR="/home/carlos/Documents/github/msc_ai_thesis_experiments/h
 
 mkdir -p "$REPORT_OUT_DIR"
 
-python generate_documentation.py
-python generate_architecture_report.py
-python generate_reward_landscape.py
+python report_utils/luxai/generate_documentation.py
+python report_utils/luxai/generate_architecture_report.py
+python report_utils/luxai/generate_reward_landscape.py

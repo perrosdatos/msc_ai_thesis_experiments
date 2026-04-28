@@ -11,8 +11,9 @@ import subprocess
 import datetime
 
 # Make sure we can import local modules
-sys.path.append(os.path.abspath("/home/carlos/Documents/github/msc_ai_thesis_experiments/BenchMARL"))
-from benchmarl.environments.lux.lux_env import LuxTorchRLEnv
+benchmarl_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../BenchMARL"))
+sys.path.append(benchmarl_dir)
+from benchmarl.environments.lux.lux_with_sap import LuxSapTorchRLEnv
 
 SEED_NUMBER = 1994
 def get_base64_image(fig):
@@ -27,10 +28,10 @@ def generate_report():
     out_dir = os.environ.get("REPORT_OUT_DIR")
     if not out_dir:
         stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        out_dir = f"/home/carlos/Documents/github/msc_ai_thesis_experiments/html_reports/demo_{stamp}"
+        out_dir = f"/home/carlos/Documents/github/msc_ai_thesis_experiments/html_reports/luxsap_{stamp}"
         
     os.makedirs(out_dir, exist_ok=True)
-    report_path = os.path.join(out_dir, "lux_input_report.html")
+    report_path = os.path.join(out_dir, "luxsap_input_report.html")
     photo_save_path = os.path.join(out_dir, "env_photo.png")
     
     # Enforce pure determinism for documentation consistency
@@ -38,7 +39,7 @@ def generate_report():
     torch.manual_seed(SEED_NUMBER)
     
     # We use a static seed to ensure reproducible interesting behaviors (units moving, etc)
-    env = LuxTorchRLEnv(batch_size=1, max_steps=200, match_count=1, seed=SEED_NUMBER, reward_version="v2")
+    env = LuxSapTorchRLEnv(batch_size=1, max_steps=200, match_count=1, seed=SEED_NUMBER, reward_version="v2", device="cpu")
     
     moth_dir = "/home/carlos/Documents/github/msc_ai_thesis_marl_lux"
     if moth_dir not in sys.path:
@@ -46,7 +47,7 @@ def generate_report():
     
     agent_class = None
     try:
-        from agent import Agent
+        from rulebased_agent_main import Agent
         agent_class = Agent
         env.rulebased_agent_class = Agent
     except ImportError as e:
@@ -63,14 +64,36 @@ def generate_report():
     print("Simulating 150 steps to populate environment...")
     for step in range(150):
         if agent_p0:
-            pseudo_obs = env._build_pseudo_obs(env.jax_obs, team_id, 0)
+            # Build pseudo obs logic for the rulebased agent
+            p0 = env.jax_obs[f"player_{team_id}"]
+            def get_v(o, k): return getattr(o, k) if hasattr(o, k) else o.get(k)
+            u_mask = np.asarray(get_v(p0, "units_mask"))[0]
+            pos = np.asarray(get_v(get_v(p0, "units"), "position"))[0]
+            en = np.asarray(get_v(get_v(p0, "units"), "energy"))[0]
+            r_nodes = np.asarray(get_v(p0, "relic_nodes"))[0]
+            r_mask = np.asarray(get_v(p0, "relic_nodes_mask"))[0]
+            t_pts = np.asarray(get_v(p0, "team_points"))[0]
+            
+            pseudo_obs = {
+                "units_mask": u_mask.tolist(),
+                "units": {"position": pos.tolist(), "energy": en.tolist()},
+                "relic_nodes": r_nodes.tolist(), "relic_nodes_mask": r_mask.tolist(), "team_points": t_pts.tolist()
+            }
+            
             act_rule = agent_p0.act(step, pseudo_obs)
             actions = act_rule[:, 0]
         else:
             actions = np.random.randint(0, 5, size=(16,))
             
+        # Randomly shoot SAP (action 5) to show combat behavior in documentation
+        actions[np.random.rand(16) < 0.15] = 5
+            
         td["agents", "action"] = torch.tensor(actions, dtype=torch.long, device=env.device).unsqueeze(0)
         td["action"] = td["agents", "action"]
+        
+        env.opp_actions = np.zeros((1, 16), dtype=np.int32)
+        env.opp_actions[0, np.random.rand(16) < 0.15] = 5
+        
         td = env.step(td).get("next")
 
     print("Capturing data...")
@@ -98,24 +121,14 @@ def generate_report():
     else:
         components_html = "<p class='text-muted'>No dynamic reward components available in this step.</p>"
 
-    # 3. Extract 12 Channels Observation (select an active unit if possible, else 0)
-    obs = td["agents", "observation"][0].cpu().numpy() # [U, 12, 24, 24]
+    # 3. Extract 16 Channels Observation (select an active unit if possible, else 0)
+    obs = td["agents", "observation"][0].cpu().numpy() # [U, 16, 24, 24]
     
     # Picking the unit that has the highest energy to guarantee it is active and on map
     energy_levels = obs[:, 2, :, :].sum(axis=(1,2))
     unit_idx = int(np.argmax(energy_levels))
     channels_obs = obs[unit_idx]
     
-    # 3.5. Mathematical Validation for Channel 3 (Global Map Energy)
-    c3 = channels_obs[3]
-    print(f"\n--- VALIDATION FOR CHANNEL 3 (Global Map Energy) ---")
-    print(f"Agent {unit_idx} - Shape: {c3.shape}")
-    print(f"Min: {np.min(c3):.6f} | Max: {np.max(c3):.6f}")
-    print(f"Mean: {np.mean(c3):.8f} | Variance: {np.var(c3):.8f}")
-    
-    grid_c3 = obs[:, 3, :, :]
-    print(f"Global Batch Channel 3 Mean across all agents: {np.mean(grid_c3):.8f}\n")
-
     # 4. Generate Images for the 16 Channels
     cmaps = ['viridis', 'viridis', 'magma', 'magma', 'viridis', 'viridis', 'viridis', 'plasma', 'spring', 'cool', 'inferno', 'bwr', 'RdPu', 'Blues', 'cividis', 'Greens']
     channel_images = []
@@ -147,7 +160,7 @@ def generate_report():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lux AI S3 - MARL Dynamic Input Report</title>
+    <title>Lux AI S3 - Combat Environment Documentation</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {{ background-color: #121212; }}
@@ -165,7 +178,7 @@ def generate_report():
 </head>
 <body class="text-light p-4">
     <div class="container">
-        <h1 class="display-4 text-primary">Lux AI Season 3</h1>
+        <h1 class="display-4 text-primary">Lux AI Season 3 (Combat SAP Module)</h1>
         <h2 class="text-muted mb-4">Interactive MARL Observation Documentation</h2>
         <p class="lead">This report is dynamically generated via script at simulation step 150.</p>
 
@@ -175,7 +188,7 @@ def generate_report():
             <img src="{photo_path}" class="environment-photo" alt="Environment Screen">
         </div>
 
-        <h3 class="section-header">2. Reward Components at Step 150</h3>
+        <h3 class="section-header">2. Reward Components at Step 150 (Including Combat Logic)</h3>
         {components_html}
 
         <h3 class="section-header">3. Observation Channel Breakdown (Agent {unit_idx})</h3>

@@ -81,36 +81,33 @@ def get_html_table(trace, title):
     return html
 
 def main():
-    # 1. Define the architecture matching `lux_sweep` CNN specs
-    # cnn_num_cells: [32, 32, 32], kernel_size: 3, strides: 1, padding: 0
+    # 1. Define the architecture matching `cnn_lux_16ch.yaml` CNN specs
     cnn = nn.Sequential(
-        nn.Conv2d(in_channels=14, out_channels=32, kernel_size=3, stride=1, padding=0),
-        nn.Tanh(),
-        nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=0),
-        nn.Tanh(),
-        nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=0),
-        nn.Tanh(),
+        nn.Conv2d(in_channels=16, out_channels=64, kernel_size=3, stride=2, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1),
+        nn.ReLU(),
         nn.Flatten()
     )
     
-    # Batch=1, Channels=14, Max_Units=1 is handled implicitly, we trace pure image resolution 24x24
-    dummy_input = torch.zeros(1, 14, 24, 24)
+    dummy_input = torch.zeros(1, 16, 24, 24)
     cnn_trace, cnn_out = trace_model(cnn, dummy_input)
     
-    # 2. Define the MLP block
-    # mlp_num_cells: [32], producing embedding bottleneck
-    flatten_size = cnn_out.shape[1] # Expected 10368
+    flatten_size = cnn_out.shape[1] 
     mlp = nn.Sequential(
-        nn.Linear(flatten_size, 32),
-        nn.Tanh()
+        nn.Linear(flatten_size, 256),
+        nn.ReLU(),
+        nn.Linear(256, 128),
+        nn.ReLU()
     )
     
     mlp_trace, final_out = trace_model(mlp, cnn_out)
     
-    # 3. Define the Policy Head Block
-    # Discrete Policy outputs 5 probabilities (logits) corresponding to the 5 Lux discrete actions.
+    # Policy Head outputs 6 discrete actions for LuxSap (Up, Down, L, R, Center, SAP)
     policy = nn.Sequential(
-        nn.Linear(32, 5) # Map embedding bottleneck directly to categorical choices
+        nn.Linear(128, 6) 
     )
     policy_trace, policy_out = trace_model(policy, final_out)
     
@@ -126,7 +123,7 @@ def main():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lux AI S3 - MARL Internal CNN Architecture</title>
+    <title>Lux AI S3 (SAP Combat) - MARL Internal CNN Architecture</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({{startOnLoad:true, theme: 'dark'}});</script>
@@ -136,8 +133,8 @@ def main():
 </head>
 <body class="py-5">
     <div class="container">
-        <h1 class="display-6 mb-2 fw-bold text-primary">Model Architecture Radiography</h1>
-        <p class="lead text-muted mb-5">Tracing the exact <code>MultiAgentConvNet</code> topology deployed inside BenchMARL mapping the dynamic `14-Channel` environment vector.</p>
+        <h1 class="display-6 mb-2 fw-bold text-primary">Model Architecture Radiography (6 Actions SAP)</h1>
+        <p class="lead text-muted mb-5">Tracing the exact <code>MultiAgentConvNet</code> topology deployed inside BenchMARL mapping the dynamic `16-Channel` environment vector.</p>
 
         <div class="alert alert-info shadow-sm d-flex justify-content-between align-items-center mb-5">
             <div>
@@ -162,21 +159,21 @@ def main():
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" class="bi bi-arrow-down" viewBox="0 0 16 16">
               <path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
             </svg>
-            <p class="mt-2 text-warning fw-bold">Algorithm Branch Out (Size: 32)</p>
+            <p class="mt-2 text-warning fw-bold">Algorithm Branch Out (Size: 128)</p>
         </div>
         
-        {get_html_table(policy_trace, "Policy Head (Categorical Architecture Output)")}
+        {get_html_table(policy_trace, "Policy Head (Categorical Architecture Output - Includes Combat)")}
         
         <h3 class="mt-5 mb-4 border-bottom border-secondary pb-2">Topological Diagram: Body-to-Head Handshake</h3>
         <div class="card bg-dark border-secondary mb-5 shadow-lg">
             <div class="card-body text-center" style="background-color: #1a1a1a; overflow-y: auto;">
                 <div class="mermaid">
                     graph TD
-                    Env(("🌍 14-Channel Environment State Matrix<br/>(+ Fog-of-War Memory + Agent Trajectory)")) --> CNN["🧠 Shared CNN Brain<br/>(10,368 flattened nodes)"]
-                    CNN -->|Linear Projection| Z["📉 Latent State Embedding (32 nodes)"]
+                    Env(("🌍 16-Channel Environment State Matrix<br/>(+ Fog-of-War Memory + Agent Trajectory)")) --> CNN["🧠 Shared CNN Brain<br/>(18,432 flattened nodes)"]
+                    CNN -->|Linear Projection| Z["📉 Latent State Embedding (128 nodes)"]
                     
                     Z -->|Diverges Input| Actor["🕹️ Actor Head Policy<br/>(Multi-Agent Network)"]
-                    Actor -->|Probabilities| Act(("⚡ 5 Discrete Actions<br/>(Up, Down, L, R, Center)"))
+                    Actor -->|Probabilities| Act(("⚡ 6 Discrete Actions<br/>(Up, Down, L, R, Center, SAP/Shoot)"))
                     
                     Z -.->|Diverges Parallel Input| Critic["⚖️ Critic Head<br/>(Q-Value / State-Value estimator)"]
                     Critic -.-> Value(("💰 State Value<br/>(Scalar)"))
@@ -200,7 +197,7 @@ def main():
     out_dir = os.environ.get("REPORT_OUT_DIR")
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-        report_path = os.path.join(out_dir, "lux_cnn_architecture.html")
+        report_path = os.path.join(out_dir, "luxsap_cnn_architecture.html")
     else:
         try:
             git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).strip().decode('utf-8')
@@ -208,14 +205,14 @@ def main():
             git_hash = "unknown_commit"
             
         stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        out_dir = f"html_reports/{git_hash}_{stamp}"
+        out_dir = f"../../../html_reports/luxsap_{git_hash}_{stamp}"
         os.makedirs(out_dir, exist_ok=True)
-        report_path = os.path.join(out_dir, "lux_cnn_architecture.html")
+        report_path = os.path.join(out_dir, "luxsap_cnn_architecture.html")
     
     with open(report_path, "w") as f:
         f.write(html_content)
         
-    print(f"✅ Extracted Model Graph and calculated parameters.")
+    print(f"✅ Extracted Model Graph and calculated parameters (16CH + 6 ACT).")
     print(f"✅ Generated Architecture Report: {report_path}")
 
 if __name__ == "__main__":
