@@ -215,3 +215,8 @@ notebooks/
 html_reports/
 local-data/
 reports/
+
+# Local experiment files
+checkpoints/
+output_models/
+scratch/
