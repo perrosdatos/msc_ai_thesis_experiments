@@ -178,8 +178,12 @@ def generate_html_report(df, csv_path, step_points_history, algo_a, algo_b):
     
     # 4. Bias (Team Allocations)
     df["Team Assignment"] = df["model_team_id"].apply(lambda x: f"Team {x}")
-    df_bias_win = df.groupby("Team Assignment")["model_won"].mean().reset_index()
-    df_bias_win["Win Rate %"] = df_bias_win["model_won"] * 100
+    
+    # Fix win rate calculation: map -1 (tie) to 0.5 for accurate mean
+    df["win_score"] = df["model_won"].apply(lambda x: 0.5 if x == -1 else x)
+    df_bias_win = df.groupby("Team Assignment")["win_score"].mean().reset_index()
+    df_bias_win.rename(columns={"win_score": "Win Rate %"}, inplace=True)
+    df_bias_win["Win Rate %"] = df_bias_win["Win Rate %"] * 100
     
     f_bias = px.bar(df_bias_win, x="Team Assignment", y="Win Rate %", color="Team Assignment",
                     title="Win Rate Dependent on Assigned Starter Position", template="plotly_dark",

@@ -220,3 +220,15 @@ reports/
 checkpoints/
 output_models/
 scratch/
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Large data and logs
+*.csv
+*.mp4
+wandb/
+performance_analysis/csv_data/
+performance_analysis/videos/

@@ -1,0 +1,70 @@
+
+==================================================
+Introspecting MAPPO
+==================================================
+POLICY NETWORK:
+TensorDictSequential(
+    module=ModuleList(
+      (0): ProbabilisticActor(
+          module=ModuleList(
+            (0): Cnn()
+            (1): SafeProbabilisticModule(
+                in_keys=[('agents', 'logits'), ('agents', 'action_mask')],
+                out_keys=[('agents', 'action'), ('agents', 'log_prob')],
+                distribution_class=<class 'torchrl.modules.distributions.discrete.MaskedCategorical'>, 
+                distribution_kwargs={}),
+                default_interaction_type=deterministic),
+                num_samples=None))
+          ),
+          device=cpu,
+          in_keys=[('agents', 'observation'), ('agents', 'action_mask')],
+          out_keys=[('agents', 'logits'), ('agents', 'action'), ('agents', 'log_prob')])
+    ),
+    device=cpu,
+    in_keys=[('agents', 'observation'), ('agents', 'action_mask')],
+    out_keys=[('agents', 'logits'), ('agents', 'action'), ('agents', 'log_prob')])
+
+==================================================
+Introspecting MASAC
+==================================================
+POLICY NETWORK:
+TensorDictSequential(
+    module=ModuleList(
+      (0): ProbabilisticActor(
+          module=ModuleList(
+            (0): Cnn()
+            (1): SafeProbabilisticModule(
+                in_keys=[('agents', 'logits'), ('agents', 'action_mask')],
+                out_keys=[('agents', 'action'), ('agents', 'log_prob')],
+                distribution_class=<class 'torchrl.modules.distributions.discrete.MaskedCategorical'>, 
+                distribution_kwargs={'neg_inf': -18.0}),
+                default_interaction_type=deterministic),
+                num_samples=None))
+          ),
+          device=cpu,
+          in_keys=[('agents', 'observation'), ('agents', 'action_mask')],
+          out_keys=[('agents', 'logits'), ('agents', 'action'), ('agents', 'log_prob')])
+    ),
+    device=cpu,
+    in_keys=[('agents', 'observation'), ('agents', 'action_mask')],
+    out_keys=[('agents', 'logits'), ('agents', 'action'), ('agents', 'log_prob')])
+
+==================================================
+Introspecting QMIX
+==================================================
+POLICY NETWORK:
+TensorDictSequential(
+    module=ModuleList(
+      (0): TensorDictSequential(
+          module=ModuleList(
+            (0): Cnn()
+            (1): QValueModule()
+            (2): EGreedyModule()
+          ),
+          device=cpu,
+          in_keys=[('agents', 'observation'), ('agents', 'action_mask')],
+          out_keys=[('agents', 'action_value'), ('agents', 'chosen_action_value'), ('agents', 'action')])
+    ),
+    device=cpu,
+    in_keys=[('agents', 'observation'), ('agents', 'action_mask')],
+    out_keys=[('agents', 'action_value'), ('agents', 'chosen_action_value'), ('agents', 'action')])
