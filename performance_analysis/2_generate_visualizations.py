@@ -245,11 +245,11 @@ def generate_global_report(df, out_dir):
     html = f"""
     <html><head><title>Global Overview Report</title>
     {STYLE_CSS}
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script></head><body>
+    {JS_SCRIPT}
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script></head><body>
     <h1>Global Sweep Overview & Leaderboard</h1>
     <div class="tab">{tabs_buttons}</div>
     {tabs_content}
-    {JS_SCRIPT}
     </body></html>
     """
     with open(os.path.join(out_dir, "0_global_overview.html"), "w") as f:
@@ -288,7 +288,7 @@ def generate_learning_progression_reports(df, out_dir):
         html = f"""
         <html><head><title>Learning Progression: {cat}</title>
         {STYLE_CSS}
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script></head><body>
+        <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script></head><body>
         <h1>Learning Progression: {cat}</h1>
         <p style="text-align:center; color:#aaa;">Visualizing the evolutionary rate of learning for each algorithm across 40 checkpoints.</p>
         <div class="plot-container">
@@ -362,7 +362,7 @@ def generate_individual_report(df, algo, out_dir):
                      template=template, text_auto='.2f', color_discrete_sequence=[MODEL_COLORS[algo.upper()]])
     fig_bar.update_layout(xaxis={'categoryorder':'total descending'})
     
-    tabs_buttons += f'<button class="tablinks active" onclick="openTab(event, \'tab_leaderboard\')">Executive Leaderboard</button>\\n'
+    tabs_buttons += f'<button class="tablinks active" onclick="openTab(event, \'tab_leaderboard\')">Executive Leaderboard</button>\n'
     tabs_content += f'''
     <div id="tab_leaderboard" class="tabcontent" style="display:block;">
         <h2>Top 10 Checkpoints for {algo.upper()}</h2>
@@ -443,11 +443,11 @@ def generate_individual_report(df, algo, out_dir):
     html = f'''
     <html><head><title>{algo.upper()} Outcomes</title>
     {STYLE_CSS}
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script></head><body>
+    {JS_SCRIPT}
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script></head><body>
     <h1>{algo.upper()} Comprehensive Outcome Report</h1>
     <div class="tab">{tabs_buttons}</div>
     {tabs_content}
-    {JS_SCRIPT}
     </body></html>
     '''
     with open(os.path.join(out_dir, f"{algo}_outcomes.html"), "w") as f:
@@ -539,11 +539,11 @@ def generate_comparative_report(df, algo_a, algo_b, out_dir):
     html = f'''
     <html><head><title>{algo_a.upper()} vs {algo_b.upper()}</title>
     {STYLE_CSS}
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script></head><body>
+    {JS_SCRIPT}
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script></head><body>
     <h1>{algo_a.upper()} vs {algo_b.upper()} Comprehensive Head-to-Head Report</h1>
     <div class="tab">{tabs_buttons}</div>
     {tabs_content}
-    {JS_SCRIPT}
     </body></html>
     '''
     with open(os.path.join(out_dir, f"{algo_a}_vs_{algo_b}.html"), "w") as f:

@@ -45,7 +45,7 @@ def load_policy(algo, checkpoint_path):
         experiment.load_state_dict(torch.load(checkpoint_path, map_location="cpu", weights_only=False))
         return experiment.algorithm.get_policy_for_collection(), experiment.test_env
 
-def evaluate_rulebased(algo, policy, env, chkpt_idx, seeds_df):
+def evaluate_rulebased(algo, policy, env, chkpt_idx, seeds_df, force_team=0):
     num_seeds = len(seeds_df)
     tracker = LuxKPITracker(batch_size=num_seeds)
     
@@ -58,11 +58,21 @@ def evaluate_rulebased(algo, policy, env, chkpt_idx, seeds_df):
             return jnp.stack([jax.random.PRNGKey(int(seeds_df.iloc[b]["seed"])) for b in range(num_seeds)])
         return original_split(key, num)
         
+    # Monkey-patch torch.randint to force the RL model to play as a specific team (0 or 1)
+    original_randint = torch.randint
+    def patched_randint(low, high, size, **kwargs):
+        if low == 0 and high == 2:
+            # This intercepts the team_ids allocation in lux_env.py
+            return torch.full(size, force_team, dtype=torch.int64, **kwargs)
+        return original_randint(low, high, size, **kwargs)
+        
     jax.random.split = patched_split
+    torch.randint = patched_randint
     try:
         td = env.reset()
     finally:
         jax.random.split = original_split
+        torch.randint = original_randint
         
     step_count = 0
     
@@ -73,7 +83,7 @@ def evaluate_rulebased(algo, policy, env, chkpt_idx, seeds_df):
     record_video = True
     frames = []
     
-    pbar = tqdm(total=750, desc=f"Evaluating {algo} (Ckpt {chkpt_idx}) vs Rule-Based", leave=False)
+    pbar = tqdm(total=750, desc=f"Evaluating {algo} (Ckpt {chkpt_idx}) vs Rule-Based [Playing as Team {force_team}]", leave=False)
     
     while True:
         if record_video:
@@ -108,21 +118,34 @@ def evaluate_rulebased(algo, policy, env, chkpt_idx, seeds_df):
         seed_0 = seeds_df.iloc[0]["seed"]
         video_dir = "/home/carlos/Documents/github/msc_ai_thesis_experiments/performance_analysis/videos"
         os.makedirs(video_dir, exist_ok=True)
-        vid_path = os.path.join(video_dir, f"rulebased_ckpt_{chkpt_idx}_seed_{seed_0}_{algo}_vs_RULEBASED.mp4")
+        vid_path = os.path.join(video_dir, f"rulebased_ckpt_{chkpt_idx}_seed_{seed_0}_{algo}_as_Team{force_team}.mp4")
         imageio.mimsave(vid_path, frames, fps=10)
     
     rows = []
     for b in range(num_seeds):
         res = raw_results[b]
         
-        # In this wrapper, the training policy is ALWAYS team_0 (from the perspective of the observations).
-        # The environment handles the mapping to actual map teams internally.
+        # If the RL model played as Team 1 on the map, we MUST swap the metrics in `res`
+        # so that `team_0_*` in the output CSV always represents the RL Model, 
+        # and `team_1_*` always represents the Rule-Based agent.
+        if force_team == 1:
+            swapped_res = {}
+            for k, v in res.items():
+                if k.startswith("team_0_"):
+                    swapped_res[k.replace("team_0_", "team_1_")] = v
+                elif k.startswith("team_1_"):
+                    swapped_res[k.replace("team_1_", "team_0_")] = v
+                else:
+                    swapped_res[k] = v
+            res = swapped_res
+
         row = {
             "seed_id": seeds_df.iloc[b]["seed"],
             "batch_idx": b,
             "chkpt_idx": chkpt_idx,
             "team_0_model": algo,
             "team_1_model": "rule_based",
+            "map_team_played": force_team,
         }
         
         p0_pts = res["team_0_total_points"]
@@ -230,8 +253,13 @@ def main():
             print(f"Loading {algo} from {p_path}...")
             policy, env = load_policy(algo, p_path)
             
-            rows = evaluate_rulebased(algo, policy, env, c, seeds_df)
-            all_rows.extend(rows)
+            # Run Match 1: RL is Team 0
+            rows_t0 = evaluate_rulebased(algo, policy, env, c, seeds_df, force_team=0)
+            all_rows.extend(rows_t0)
+            
+            # Run Match 2: RL is Team 1
+            rows_t1 = evaluate_rulebased(algo, policy, env, c, seeds_df, force_team=1)
+            all_rows.extend(rows_t1)
             
             df = pd.DataFrame(all_rows)
             df.to_csv(csv_file, index=False)

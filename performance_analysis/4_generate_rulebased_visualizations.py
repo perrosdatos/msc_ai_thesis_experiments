@@ -167,7 +167,7 @@ def generate_rulebased_overview(df, out_dir):
                              hover_name="Configuration", title="Efficiency Landscape vs Rule-Based",
                              template=template, opacity=0.8, size_max=20)
 
-    tabs_buttons = f'<button class="tablinks active" onclick="openTab(event, \'tab_summary\')">Executive Summary</button>\\n'
+    tabs_buttons = f'<button class="tablinks active" onclick="openTab(event, \'tab_summary\')">Executive Summary</button>\n'
     
     tabs_content = f'''<div id="tab_summary" class="tabcontent" style="display:block;">
     <h2>Top Checkpoints vs Rule-Based Agent</h2>
@@ -182,7 +182,7 @@ def generate_rulebased_overview(df, out_dir):
 
     for i, (cat, m_list) in enumerate(CATEGORIES.items()):
         safe_cat = cat.lower().replace(" & ", "_").replace(" ", "_")
-        tabs_buttons += f'<button class="tablinks" onclick="openTab(event, \'tab_{safe_cat}\')">{cat}</button>\\n'
+        tabs_buttons += f'<button class="tablinks" onclick="openTab(event, \'tab_{safe_cat}\')">{cat}</button>\n'
         
         cat_html = f"<h2>{cat} Rankings vs Rule-Based</h2><div class='plot-container'>"
         for m in m_list:
@@ -201,16 +201,16 @@ def generate_rulebased_overview(df, out_dir):
                 cat_html += f"<div class='plot-box full'>{fig.to_html(full_html=False, include_plotlyjs=False)}</div>"
                 
         cat_html += "</div>"
-        tabs_content += f'<div id="tab_{safe_cat}" class="tabcontent" style="display:none;">{cat_html}</div>\\n'
+        tabs_content += f'<div id="tab_{safe_cat}" class="tabcontent" style="display:none;">{cat_html}</div>\n'
 
     html = f"""
     <html><head><title>Rule-Based Overview Report</title>
     {STYLE_CSS}
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script></head><body>
+    {JS_SCRIPT}
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script></head><body>
     <h1>Rule-Based Opponent Evaluation Overview</h1>
     <div class="tab">{tabs_buttons}</div>
     {tabs_content}
-    {JS_SCRIPT}
     </body></html>
     """
     with open(os.path.join(out_dir, "0_rulebased_overview.html"), "w") as f:
@@ -235,7 +235,7 @@ def main():
     
     generate_rulebased_overview(df, out_dir)
         
-    print(f"\\n✅ Rule-Based Dashboards generated successfully at: {out_dir}")
+    print(f"\n✅ Rule-Based Dashboards generated successfully at: {out_dir}")
 
 if __name__ == "__main__":
     main()
