@@ -324,10 +324,59 @@ def generate_individual_report(df, algo, out_dir):
     template = "plotly_dark"
     color_map = {"Win": "#00CC96", "Loss": "#FF4B4B", "Tie": "#888888"}
     
+    # ------------------
+    # ADD EXECUTIVE LEADERBOARD TAB
+    # ------------------
+    metrics_all = []
+    for _, row in df_algo.iterrows():
+        is_t0 = row['team_0_model'] == algo
+        prefix = "team_0_" if is_t0 else "team_1_"
+        if row["winner_model"] == algo:
+            outcome = 1
+        elif row["winner_model"] == "Tie":
+            outcome = 0.5
+        else:
+            outcome = 0
+            
+        r = {
+            "chkpt_idx": row["chkpt_idx"],
+            "Points": clean_value(row.get(prefix + "total_points", np.nan), "total_points"),
+            "Energy": clean_value(row.get(prefix + "energy_spent", np.nan), "energy_spent"),
+            "Efficiency": clean_value(row.get(prefix + "efficiency", np.nan), "efficiency"),
+            "Win": outcome
+        }
+        metrics_all.append(r)
+        
+    df_m_all = pd.DataFrame(metrics_all)
+    df_agg = df_m_all.groupby("chkpt_idx").agg({"Points":"mean", "Energy":"mean", "Efficiency":"mean", "Win":"mean"}).reset_index()
+    df_agg["Win Rate (%)"] = (df_agg["Win"] * 100).round(2)
+    df_agg["Configuration"] = f"{algo.upper()} (Ckpt " + df_agg["chkpt_idx"].astype(str) + ")"
+    df_top10 = df_agg.sort_values(by="Points", ascending=False).head(10)
+    
+    df_table = df_top10[["Configuration", "Points", "Energy", "Efficiency", "Win Rate (%)"]].copy()
+    df_table.rename(columns={"Points": "Avg Final Points", "Energy": "Avg Energy Spent", "Efficiency": "Avg Efficiency"}, inplace=True)
+    table_html = f"<div class='table-container'>{df_table.to_html(classes='table table-striped', index=False)}</div>"
+    
+    fig_bar = px.bar(df_top10, x="Configuration", y="Points", 
+                     title=f"Top 10 {algo.upper()} Checkpoints by Average Points", 
+                     template=template, text_auto='.2f', color_discrete_sequence=[MODEL_COLORS[algo.upper()]])
+    fig_bar.update_layout(xaxis={'categoryorder':'total descending'})
+    
+    tabs_buttons += f'<button class="tablinks active" onclick="openTab(event, \'tab_leaderboard\')">Executive Leaderboard</button>\\n'
+    tabs_content += f'''
+    <div id="tab_leaderboard" class="tabcontent" style="display:block;">
+        <h2>Top 10 Checkpoints for {algo.upper()}</h2>
+        {table_html}
+        <div class='plot-container'>
+            <div class='plot-box full'>{fig_bar.to_html(full_html=False, include_plotlyjs=False)}</div>
+        </div>
+    </div>
+    '''
+    
     for i, ckpt in enumerate(checkpoints):
         df_c = df_algo[df_algo['chkpt_idx'] == ckpt]
-        active_cls = "active" if i == 0 else ""
-        disp_style = "display:block;" if i == 0 else "display:none;"
+        active_cls = ""
+        disp_style = "display:none;"
         tabs_buttons += f'<button class="tablinks {active_cls}" onclick="openTab(event, \'ckpt_{ckpt}\')">Checkpoint {ckpt}</button>\n'
         
         metrics_list = []
