@@ -171,6 +171,18 @@ def generate_global_report(df, out_dir):
     df_table.rename(columns={"Model_Checkpoint": "Configuration", "Points": "Avg Final Points", "Energy": "Avg Energy Spent", "Efficiency": "Avg Efficiency"}, inplace=True)
     table_html = f"<div class='table-container'>{df_table.to_html(classes='table table-striped', index=False)}</div>"
     
+    # Global Algorithm Leaderboard (Aggregating all checkpoints)
+    df_global_algos = df_m.groupby("Model").agg({"Win": "mean"}).reset_index()
+    df_global_algos["Win Rate (%)"] = (df_global_algos["Win"] * 100).round(1)
+    df_global_algos = df_global_algos.sort_values("Win", ascending=False)
+    
+    # Also calculate total episodes per model to show where it comes from
+    df_global_algos["Episodes Played"] = df_m.groupby("Model")["Win"].count().values
+    df_global_algos["Episodes Won"] = df_m.groupby("Model")["Win"].sum().values
+    
+    df_global_table = df_global_algos[["Model", "Win Rate (%)", "Episodes Won", "Episodes Played"]].copy()
+    global_table_html = f"<div class='table-container'>{df_global_table.to_html(classes='table table-striped', index=False)}</div>"
+    
     # Step Data for Top 10
     step_data = []
     for _, row in df_top10.iterrows():
@@ -205,6 +217,9 @@ def generate_global_report(df, out_dir):
     tabs_buttons = f'<button class="tablinks active" onclick="openTab(event, \'tab_summary\')">Executive Summary</button>\n'
     
     tabs_content = f'''<div id="tab_summary" class="tabcontent" style="display:block;">
+    <h2>Global Algorithm Win Rate (Over 11,800 Cross-Play Episodes)</h2>
+    {global_table_html}
+    <br>
     <h2>Detailed Configuration Leaderboard (Top 10)</h2>
     {table_html}
     <h2>Macro Visualizations</h2>
