@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lux AI S3: KPI Tracker Definitions</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background-color: #ffffff;
+            color: #333333;
+            margin: 0;
+            padding: 40px;
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            font-weight: 600;
+            color: #111;
+            margin-bottom: 10px;
+            font-size: 28px;
+            border-bottom: 2px solid #222;
+            padding-bottom: 15px;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #555;
+            margin-bottom: 40px;
+            font-size: 15px;
+        }
+        h2 {
+            font-size: 20px;
+            color: #000;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            font-size: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+        }
+        td code {
+            background-color: #f1f3f5;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-family: "Courier New", Courier, monospace;
+            color: #d63384;
+            font-weight: bold;
+        }
+        td.formula {
+            font-family: "Georgia", serif;
+            font-style: italic;
+            color: #444;
+        }
+        .note {
+            background-color: #f8f9fa;
+            border-left: 4px solid #adb5bd;
+            padding: 15px;
+            margin-top: 30px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Lux AI S3: KPI Tracker Definitions & Formulas</h1>
+    <p class="subtitle">A comprehensive overview of all Key Performance Indicators calculated and logged by the <code>kpi_tracker.py</code> module.</p>
+
+    <h2>1. Collaborative Skills (Team-Level KPIs)</h2>
+    <p>These metrics evaluate the collective performance of the 16 agents acting as a unified team.</p>
+    <table>
+        <tr>
+            <th style="width: 25%;">KPI Name</th>
+            <th style="width: 40%;">Description</th>
+            <th style="width: 35%;">Logic / Formula Used</th>
+        </tr>
+        <tr>
+            <td><code>total_points</code></td>
+            <td>Total points accumulated by the team over the match.</td>
+            <td class="formula">&Sigma; max(&Delta; team_points, 0)</td>
+        </tr>
+        <tr>
+            <td><code>energy_spent</code></td>
+            <td>Total amount of energy consumed by all team units.</td>
+            <td class="formula">&Sigma; max(-(energy<sub>t</sub> - energy<sub>t-1</sub>), 0)</td>
+        </tr>
+        <tr>
+            <td><code>efficiency</code></td>
+            <td>The point-generation efficiency relative to energy consumption.</td>
+            <td class="formula">total_points / (energy_spent + 1e-5)</td>
+        </tr>
+        <tr>
+            <td><code>friendly_killed</code></td>
+            <td>Number of team units destroyed during the match.</td>
+            <td>Count of unit mask transitions (True &rarr; False)</td>
+        </tr>
+        <tr>
+            <td><code>opponents_killed</code></td>
+            <td>Number of enemy units destroyed by the team.</td>
+            <td>Count of opponent mask transitions (True &rarr; False)</td>
+        </tr>
+        <tr>
+            <td><code>combat_dominance</code></td>
+            <td>The Kill/Death Ratio (K/D) of the team in combat engagements.</td>
+            <td class="formula">opponents_killed / (friendly_killed + 1e-5)</td>
+        </tr>
+        <tr>
+            <td><code>total_respawns</code></td>
+            <td>Total number of times units spawned or respawned.</td>
+            <td>Count of unit mask transitions (False &rarr; True)</td>
+        </tr>
+        <tr>
+            <td><code>resource_monopoly</code></td>
+            <td>The team's control over the global match economy.</td>
+            <td class="formula">team_points / (team_0_points + team_1_points)</td>
+        </tr>
+        <tr>
+            <td><code>map_exploration_prop</code></td>
+            <td>The percentage of the 24x24 map explored by the team.</td>
+            <td class="formula">Unique Tiles Visited / (24 &times; 24)</td>
+        </tr>
+        <tr>
+            <td><code>time_to_first_relic</code></td>
+            <td>The number of steps taken to discover the first relic.</td>
+            <td>Step index when dist &le; 4 to relic. Penalty=750 if never found.</td>
+        </tr>
+        <tr>
+            <td><code>synergy_handoffs</code></td>
+            <td>Measures collaborative exploitation of discovered resources.</td>
+            <td>+0.1 per step points are generated by an agent at a relic discovered by a <em>different</em> teammate.</td>
+        </tr>
+        <tr>
+            <td><code>info_propagation_delay</code></td>
+            <td>The time delay between discovery and team reinforcement.</td>
+            <td class="formula">time_to_second_agent - time_to_first_relic</td>
+        </tr>
+        <tr>
+            <td><code>dispersion_variance</code></td>
+            <td>The spatial spread and map coverage of the team's units.</td>
+            <td class="formula">Avg( Var(|| P<sub>i</sub> - &mu; ||) )</td>
+        </tr>
+    </table>
+
+    <h2>2. Individual Skills (Agent-Level KPIs)</h2>
+    <p>These metrics evaluate the micro-management and survival skills of each of the 16 independent units (<code>agent_0</code> to <code>agent_15</code>).</p>
+    <table>
+        <tr>
+            <th style="width: 25%;">KPI Name</th>
+            <th style="width: 40%;">Description</th>
+            <th style="width: 35%;">Logic / Formula Used</th>
+        </tr>
+        <tr>
+            <td><code>energy_spent</code></td>
+            <td>Energy consumed by this specific unit.</td>
+            <td class="formula">&Sigma; max(-(energy<sub>t</sub> - energy<sub>t-1</sub>), 0)</td>
+        </tr>
+        <tr>
+            <td><code>points_generated</code></td>
+            <td>The exact point contribution of this unit to the team's total.</td>
+            <td class="formula">(local_pts / &Sigma; local_pts) &times; &Delta; team_points</td>
+        </tr>
+        <tr>
+            <td><code>tiles_explored</code></td>
+            <td>Number of unique map tiles physically stepped on by this unit.</td>
+            <td>Cumulative count of unique (X, Y) coordinate footprints.</td>
+        </tr>
+        <tr>
+            <td><code>avg_lifespan</code></td>
+            <td>Total time the agent remained alive on the map.</td>
+            <td class="formula">&Sigma; (step<sub>death</sub> - step<sub>spawn</sub>)</td>
+        </tr>
+    </table>
+
+    <h2>3. Reward Components (Environment Shapers)</h2>
+    <p>These metrics are dynamically extracted from the <code>env.last_reward_components</code> dictionary. The tracker logs both the <strong>Total Accumulation</strong> and the <strong>Step-by-Step History</strong> arrays to measure policy adherence to shaped goals.</p>
+    <table>
+        <tr>
+            <th style="width: 30%;">Reward Component</th>
+            <th style="width: 20%;">Category</th>
+            <th style="width: 50%;">Description</th>
+        </tr>
+        <tr>
+            <td><code>total_reward</code></td>
+            <td><strong>Global</strong></td>
+            <td>The final shaped reward scalar passed to the RL optimization loss.</td>
+        </tr>
+        <tr>
+            <td><code>local_point_generation</code></td>
+            <td><strong>Scoring</strong></td>
+            <td>Reward for successfully generating match points.</td>
+        </tr>
+        <tr>
+            <td><code>relic_discovery</code></td>
+            <td><strong>Exploration</strong></td>
+            <td>Dense reward for moving closer to undiscovered relics.</td>
+        </tr>
+        <tr>
+            <td><code>fog_discovery</code></td>
+            <td><strong>Exploration</strong></td>
+            <td>Dense reward for revealing previously unseen tiles.</td>
+        </tr>
+        <tr>
+            <td><code>relic_proximity</code></td>
+            <td><strong>Navigation</strong></td>
+            <td>Dense reward for maintaining proximity to active relics.</td>
+        </tr>
+        <tr>
+            <td><code>relic_farming</code></td>
+            <td><strong>Scoring</strong></td>
+            <td>Dense reward for actively drawing energy/points from a relic.</td>
+        </tr>
+        <tr>
+            <td><code>energy_gain</code></td>
+            <td><strong>Survival</strong></td>
+            <td>Reward for acquiring energy from solar/relic sources.</td>
+        </tr>
+        <tr>
+            <td><code>dispersion_bonus</code></td>
+            <td><strong>Macro</strong></td>
+            <td>Reward for maintaining a healthy spatial spread across the map.</td>
+        </tr>
+        <tr>
+            <td><code>novelty_bonus</code></td>
+            <td><strong>Exploration</strong></td>
+            <td>Reward for visiting states with high novelty (intrinsic motivation).</td>
+        </tr>
+        <tr>
+            <td><code>collision_penalty</code></td>
+            <td><strong>Penalty</strong></td>
+            <td>Negative reward for crashing into other units or map boundaries.</td>
+        </tr>
+        <tr>
+            <td><code>stagnation_penalty</code></td>
+            <td><strong>Penalty</strong></td>
+            <td>Negative reward for remaining idle without contributing.</td>
+        </tr>
+        <tr>
+            <td><code>overcrowding_penalty</code></td>
+            <td><strong>Penalty</strong></td>
+            <td>Negative reward for having too many units clustered in one zone.</td>
+        </tr>
+    </table>
+
+    <div class="note">
+        <strong>Note on Data Logging:</strong> All Team and Reward KPIs are logged natively with step-by-step history arrays (<code>[step_0, step_1, ..., step_750]</code>), allowing for the rendering of progression curves in the interactive HTML dashboards.
+    </div>
+</div>
+
+</body>
+</html>

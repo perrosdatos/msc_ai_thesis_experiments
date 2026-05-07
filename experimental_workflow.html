@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Experimental Evaluation Workflow</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background-color: #ffffff;
+            color: #222222;
+            margin: 0;
+            padding: 0;
+        }
+        .page {
+            width: 900px;
+            margin: 0 auto;
+            padding: 60px 40px;
+            border-bottom: 2px dashed #cccccc;
+            page-break-after: always;
+            min-height: 500px;
+        }
+        .page:last-child {
+            border-bottom: none;
+        }
+        h2 {
+            text-align: center;
+            font-weight: 600;
+            color: #111111;
+            margin-bottom: 40px;
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #222;
+            padding-bottom: 10px;
+        }
+        .figure-label {
+            font-weight: bold;
+            color: #555555;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        /* Layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 30px;
+        }
+        .flex-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        /* Cards/Boxes */
+        .box {
+            background: #ffffff;
+            border: 2px solid #333333;
+            padding: 25px;
+            text-align: center;
+            position: relative;
+        }
+        .box-title {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #000000;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .box-desc {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #444444;
+            text-align: justify;
+        }
+        .box-sub {
+            background: #f9f9f9;
+            border: 1px solid #999999;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+        .code-tag {
+            display: inline-block;
+            font-family: "Courier New", Courier, monospace;
+            background: #f4f4f4;
+            border: 1px solid #dddddd;
+            padding: 4px 8px;
+            margin-top: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Connecting elements */
+        .arrow-down {
+            height: 40px;
+            width: 2px;
+            background-color: #333;
+            margin: 0 auto;
+            position: relative;
+        }
+        .arrow-down::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: -5px;
+            border-width: 6px 6px 0;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+        
+        /* Matchup specific */
+        .matchup-row {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin: 10px 0;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .team-a { color: #000000; background: #e8e8e8; padding: 4px 10px; border: 1px solid #ccc; }
+        .team-b { color: #ffffff; background: #555555; padding: 4px 10px; border: 1px solid #333; }
+
+    </style>
+</head>
+<body>
+
+    <!-- FIGURE 1: OVERVIEW -->
+    <div class="page">
+        <div class="figure-label">Figure 1: General Experimental Evaluation Workflow</div>
+        <h2>Overall Evaluation Pipeline</h2>
+        
+        <div class="flex-col">
+            <div class="box" style="width: 600px;">
+                <div class="box-title">Phase 1: Reproducible Setup</div>
+                <div class="box-desc" style="text-align: center;">Standardized generation of 50 deterministic environmental seeds and aggregation of trained model checkpoints.</div>
+            </div>
+            
+            <div class="arrow-down"></div>
+            
+            <div class="box" style="width: 600px;">
+                <div class="box-title">Phase 2: Dual Validation Pipeline</div>
+                <div class="grid-2" style="margin-top: 15px; gap: 15px;">
+                    <div style="border: 1px solid #ccc; padding: 10px; font-size: 13px; font-weight: bold;">Track A: Cross-Play Sweep<br><span style="font-weight: normal;">(Symmetric Model vs Model)</span></div>
+                    <div style="border: 1px solid #ccc; padding: 10px; font-size: 13px; font-weight: bold;">Track B: Baseline Tournament<br><span style="font-weight: normal;">(Model vs Rule-Based)</span></div>
+                </div>
+            </div>
+            
+            <div class="arrow-down"></div>
+            
+            <div class="box" style="width: 600px;">
+                <div class="box-title">Phase 3: Telemetry & Outputs</div>
+                <div class="box-desc" style="text-align: center;">Granular KPI tracking, performance reporting, and automated video generation for qualitative analysis.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIGURE 2: SETUP -->
+    <div class="page">
+        <div class="figure-label">Figure 2: Detail of Phase 1</div>
+        <h2>Phase 1: Reproducible Setup</h2>
+        
+        <div class="grid-2">
+            <div class="box">
+                <div class="box-title">Seed Generation</div>
+                <div class="box-desc">
+                    A master procedural seed (Seed = 42) initializes the generation of 50 globally unique map scenarios. This guarantees that all candidate models are evaluated under strictly identical spatial and environmental constraints, eliminating map layout variance.
+                </div>
+                <div class="code-tag">generate_seeds.py -> seeds.csv</div>
+            </div>
+            <div class="box">
+                <div class="box-title">Checkpoint Aggregation</div>
+                <div class="box-desc">
+                    Trained network parameter states (Policies) for MAPPO, MASAC, and QMIX are aggregated from the training phase at designated frame intervals (e.g., Checkpoint 1, 20, 40) for longitudinal performance analysis.
+                </div>
+                <div class="code-tag">models/**/*.pt</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIGURE 3: PIPELINE -->
+    <div class="page">
+        <div class="figure-label">Figure 3: Detail of Phase 2</div>
+        <h2>Phase 2: Dual Validation Pipeline</h2>
+        
+        <div class="grid-2">
+            <div class="box">
+                <div class="box-title">Cross-Play Sweep</div>
+                <div class="box-desc">
+                    A comprehensive head-to-head tournament evaluating relative algorithm performance across the 50 standardized scenarios.
+                </div>
+                <div class="box-sub">
+                    <strong>Symmetric Matchup Enforcement</strong><br><br>
+                    To mitigate any initial spawn location bias, each scenario is evaluated twice with swapped role assignments:<br>
+                    <div class="matchup-row">
+                        <span class="team-a">Model A (Team 0)</span> vs <span class="team-b">Model B (Team 1)</span>
+                    </div>
+                    <div style="font-weight: bold; margin: 5px 0;">AND</div>
+                    <div class="matchup-row">
+                        <span class="team-b">Model B (Team 0)</span> vs <span class="team-a">Model A (Team 1)</span>
+                    </div>
+                </div>
+                <div class="code-tag">1_run_cross_play_sweep.py</div>
+            </div>
+
+            <div class="box">
+                <div class="box-title">Baseline Tournament</div>
+                <div class="box-desc">
+                    An absolute performance evaluation tracking where candidate models are matched against a fixed environmental baseline.
+                </div>
+                <div class="box-sub" style="margin-top: 45px;">
+                    <strong>Rule-Based Opponent</strong><br><br>
+                    The baseline consists of a scripted agent executing a near-optimal heuristic exploitation strategy, representing the target task objective without stochastic variance.
+                </div>
+                <div class="code-tag" style="margin-top: 40px;">3_evaluate_rulebased.py</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIGURE 4: TELEMETRY -->
+    <div class="page">
+        <div class="figure-label">Figure 4: Detail of Phase 3</div>
+        <h2>Phase 3: Telemetry & Outputs</h2>
+        
+        <div class="grid-3">
+            <div class="box">
+                <div class="box-title">KPI Tracking</div>
+                <div class="box-desc" style="text-align: left;">
+                    Execution of a dedicated telemetry module during inference to record:<br><br>
+                    - Win Margins & Team Points<br>
+                    - Map Exploration (%)<br>
+                    - Dispersion Variance<br>
+                    - Synergy Information Handoffs<br>
+                    - Mean Reward Components
+                </div>
+                <div class="code-tag">kpi_tracker.py</div>
+            </div>
+            
+            <div class="box">
+                <div class="box-title">Visual Inspection</div>
+                <div class="box-desc">
+                    Automatic rendering of the environmental state for the first seed (Seed 42) of every unique matchup configuration. Captured as MP4 video formats to facilitate qualitative behavioral analysis.
+                </div>
+                <div class="code-tag">videos/*.mp4</div>
+            </div>
+            
+            <div class="box">
+                <div class="box-title">Performance Reporting</div>
+                <div class="box-desc">
+                    Aggregation of evaluation tensors into statistical datasets. Produces CSV archives representing the complete episodic history and HTML dashboards summarizing statistical win rates and KPI distributions.
+                </div>
+                <div class="code-tag">2_generate_visualizations.py</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
