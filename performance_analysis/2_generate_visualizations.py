@@ -119,7 +119,9 @@ def generate_global_report(df, out_dir):
             "Energy": row.get("team_0_energy_spent", np.nan),
             "Efficiency": row.get("team_0_efficiency", np.nan),
             "Points_History": row.get("team_0_points_history", "[]"),
-            "Win": 1 if winner == t0_model else (0.5 if winner == "Tie" else 0)
+            "Win": 1 if winner == t0_model else 0,
+            "Tie": 1 if winner == "Tie" else 0,
+            "Loss": 1 if (winner != t0_model and winner != "Tie") else 0
         }
         for cat, m_list in CATEGORIES.items():
             for m in m_list:
@@ -134,7 +136,9 @@ def generate_global_report(df, out_dir):
             "Energy": row.get("team_1_energy_spent", np.nan),
             "Efficiency": row.get("team_1_efficiency", np.nan),
             "Points_History": row.get("team_1_points_history", "[]"),
-            "Win": 1 if winner == t1_model else (0.5 if winner == "Tie" else 0)
+            "Win": 1 if winner == t1_model else 0,
+            "Tie": 1 if winner == "Tie" else 0,
+            "Loss": 1 if (winner != t1_model and winner != "Tie") else 0
         }
         for cat, m_list in CATEGORIES.items():
             for m in m_list:
@@ -146,12 +150,13 @@ def generate_global_report(df, out_dir):
         
     df_m = pd.DataFrame(metrics)
     
-    # Define aggregation dictionary dynamically
     agg_dict = {
         "Points": "mean",
         "Energy": "mean",
         "Efficiency": "mean",
-        "Win": "mean"
+        "Win": "mean",
+        "Tie": "mean",
+        "Loss": "mean"
     }
     for cat, m_list in CATEGORIES.items():
         for m in m_list:
@@ -161,26 +166,34 @@ def generate_global_report(df, out_dir):
     # Group by Model and Checkpoint
     df_agg = df_m.groupby(["Model", "chkpt_idx"]).agg(agg_dict).reset_index()
     df_agg["Win Rate (%)"] = (df_agg["Win"] * 100).round(2)
+    df_agg["Tie Rate (%)"] = (df_agg["Tie"] * 100).round(2)
+    df_agg["Loss Rate (%)"] = (df_agg["Loss"] * 100).round(2)
     df_agg["Model_Checkpoint"] = df_agg["Model"] + " (Ckpt " + df_agg["chkpt_idx"].astype(str) + ")"
     
     # Sort for Top 10 by Points
     df_top10 = df_agg.sort_values(by="Points", ascending=False).head(10)
     
     # Leaderboard Table
-    df_table = df_top10[["Model_Checkpoint", "Points", "Energy", "Efficiency", "Win Rate (%)"]].copy()
+    df_table = df_top10[["Model_Checkpoint", "Points", "Energy", "Efficiency", "Win Rate (%)", "Loss Rate (%)", "Tie Rate (%)"]].copy()
     df_table.rename(columns={"Model_Checkpoint": "Configuration", "Points": "Avg Final Points", "Energy": "Avg Energy Spent", "Efficiency": "Avg Efficiency"}, inplace=True)
     table_html = f"<div class='table-container'>{df_table.to_html(classes='table table-striped', index=False)}</div>"
     
     # Global Algorithm Leaderboard (Aggregating all checkpoints)
-    df_global_algos = df_m.groupby("Model").agg({"Win": "mean"}).reset_index()
+    df_global_algos = df_m.groupby("Model").agg(
+        Win=("Win", "mean"),
+        Tie=("Tie", "mean"),
+        Loss=("Loss", "mean"),
+        Episodes_Played=("Win", "count")
+    ).reset_index()
+    
     df_global_algos["Win Rate (%)"] = (df_global_algos["Win"] * 100).round(1)
-    df_global_algos = df_global_algos.sort_values("Win", ascending=False)
+    df_global_algos["Loss Rate (%)"] = (df_global_algos["Loss"] * 100).round(1)
+    df_global_algos["Tie Rate (%)"] = (df_global_algos["Tie"] * 100).round(1)
+    df_global_algos = df_global_algos.sort_values("Win Rate (%)", ascending=False)
     
-    # Also calculate total episodes per model to show where it comes from
-    df_global_algos["Episodes Played"] = df_m.groupby("Model")["Win"].count().values
-    df_global_algos["Episodes Won"] = df_m.groupby("Model")["Win"].sum().values
+    df_global_algos.rename(columns={"Episodes_Played": "Appearances"}, inplace=True)
     
-    df_global_table = df_global_algos[["Model", "Win Rate (%)", "Episodes Won", "Episodes Played"]].copy()
+    df_global_table = df_global_algos[["Model", "Appearances", "Win Rate (%)", "Loss Rate (%)", "Tie Rate (%)"]].copy()
     global_table_html = f"<div class='table-container'>{df_global_table.to_html(classes='table table-striped', index=False)}</div>"
     
     # Step Data for Top 10
