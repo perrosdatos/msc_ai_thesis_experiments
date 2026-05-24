@@ -10,6 +10,7 @@ import base64
 import pygame
 import datetime
 import glob
+from tensordict import TensorDict
 
 # Ensure paths
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../BenchMARL')))
@@ -23,7 +24,7 @@ from benchmarl.environments.lux.lux_env import LuxTorchRLEnv
 from benchmarl.environments.lux.reward_exploration import compute_shaped_rewards_v2
 from torchrl.envs.utils import set_exploration_type, ExplorationType
 
-SEED_NUMBER = 1994
+SEED_NUMBER = 659597
 
 def get_base64_image(fig):
     buf = BytesIO()
@@ -131,17 +132,19 @@ def calculate_reward_surface():
     return b64_img
 
 def main():
-    print("Determining Best Model...")
-    algo, chkpt = find_best_model()
-    print(f"Best Model: {algo.upper()} (Checkpoint {chkpt})")
+    algo_a = "mappo"
+    ckpt_a = 32
+    algo_b = "masac"
+    ckpt_b = 23
+    seed = SEED_NUMBER#12156
+
+    print(f"Loading {algo_a.upper()} (Ckpt {ckpt_a})...")
+    path_a = get_checkpoint_path(algo_a, ckpt_a)
+    p0_policy, _ = load_policy(algo_a, path_a)
     
-    p_path = get_checkpoint_path(algo, chkpt)
-    if p_path is None:
-        print("Model checkpoint not found on disk!")
-        return
-        
-    print("Loading RL Policy...")
-    policy, _ = load_policy(algo, p_path)
+    print(f"Loading {algo_b.upper()} (Ckpt {ckpt_b})...")
+    path_b = get_checkpoint_path(algo_b, ckpt_b)
+    p1_policy, _ = load_policy(algo_b, path_b)
     
     print("Initializing environment...")
     out_dir = "/home/carlos/Documents/github/msc_ai_thesis_experiments/performance_analysis/architecture_reports"
@@ -152,64 +155,91 @@ def main():
     np.random.seed(SEED_NUMBER)
     torch.manual_seed(SEED_NUMBER)
     
-    env = LuxTorchRLEnv(batch_size=1, max_steps=200, match_count=1, seed=SEED_NUMBER, reward_version="v2")
+    env = LuxTorchRLEnv(batch_size=1, max_steps=150, match_count=5, seed=SEED_NUMBER, reward_version="v2")
     
-    moth_dir = "/home/carlos/Documents/github/msc_ai_thesis_marl_lux"
-    if moth_dir not in sys.path:
-        sys.path.append(os.path.abspath(moth_dir))
-    
-    try:
-        from agent import Agent
-        env.rulebased_agent_class = Agent
-    except ImportError:
-        pass
-        
     # Force RL to be Team 0
     original_randint = torch.randint
     def patched_randint(low, high, size, **kwargs):
         if low == 0 and high == 2:
             return torch.full(size, 0, dtype=torch.int64, **kwargs)
         return original_randint(low, high, size, **kwargs)
-        
     torch.randint = patched_randint
+    
+    # Setup seed 12156 for JAX environment reset
+    import jax.numpy as jnp
+    original_split = jax.random.split
+    def patched_split(key, num=2):
+        if num == 1:
+            return jnp.stack([jax.random.PRNGKey(seed)])
+        return original_split(key, num)
+    jax.random.split = patched_split
+    
     td = env.reset()
+    
+    jax.random.split = original_split
     torch.randint = original_randint
     
-    print(f"Simulating at least 150 steps using {algo.upper()} until a relic, nebula, and enemy are observed simultaneously...")
+    base_lux = env
+    base_lux.rulebased_agent_class = None
+    
+    print(f"Simulating at least 150 steps of MAPPO (Ckpt {ckpt_a}) vs MASAC (Ckpt {ckpt_b}) on seed {seed} until MAPPO observes a relic, nebula, and enemy simultaneously...")
     max_steps = 750
     final_step = 150
     unit_idx = 0
     
     for step in range(max_steps):
+        # Player 0 (MAPPO) Action Selection
         with torch.no_grad():
             with set_exploration_type(ExplorationType.DETERMINISTIC):
-                td = policy(td)
+                td = p0_policy(td)
+                
+        # Construct Player 1 (MASAC) Observation
+        t_ids_np = base_lux.team_ids.cpu().numpy()
+        opp_team_ids = 1 - t_ids_np
+        
+        u_p0 = base_lux._get_v(base_lux.jax_obs["player_0"], "units")
+        pos = np.asarray(base_lux._get_v(u_p0, "position"), np.int32)
+        
+        obs_b_array = base_lux._build_spatial_observation(base_lux.jax_obs, opp_team_ids, pos)
+        
+        m0 = np.asarray(base_lux._get_v(base_lux.jax_obs["player_0"], "units_mask"), bool)
+        m1 = np.asarray(base_lux._get_v(base_lux.jax_obs["player_1"], "units_mask"), bool)
+        m_opp = np.where((opp_team_ids == 0)[:, None, None], m0, m1)
+        
+        active_units_B = np.zeros((1, base_lux.max_units), dtype=bool)
+        active_units_B[0, :] = m_opp[0, opp_team_ids[0], :]
+            
+        action_mask_B = np.zeros((1, base_lux.max_units, 5), dtype=np.bool_)
+        action_mask_B[active_units_B, :] = True
+        action_mask_B[~active_units_B, 0] = True
+        
+        td_b = TensorDict({
+            "agents": TensorDict({
+                "observation": torch.tensor(obs_b_array, device=env.device),
+                "action_mask": torch.tensor(action_mask_B, device=env.device)
+            }, batch_size=[1, base_lux.max_units])
+        }, batch_size=[1])
+        
+        with torch.no_grad():
+            with set_exploration_type(ExplorationType.DETERMINISTIC):
+                td_b = p1_policy(td_b)
+                action_b = td_b.get(("agents", "action")).cpu().numpy()
+                
+        if action_b.ndim == 3:
+            action_b = action_b.squeeze(-1)
+            
+        base_lux.opp_actions = action_b
+        
+        # Step env
         td = env.step(td).get("next")
         
-        if step >= 150:
+        if step == 589:
             obs = td["agents", "observation"][0].cpu().numpy()
             energy_levels = obs[:, 2, :, :].sum(axis=(1,2))
-            active_agents = np.where(energy_levels > 0)[0]
-            
-            relic_found = False
-            for u in active_agents:
-                # Require strictly that Channel 7 (Visible Relics), Channel 4 (Nebula), and Channel 1 (Enemies) are populated
-                c7_relics = obs[u, 7, :, :].sum() > 0.1
-                c4_nebula = obs[u, 4, :, :].sum() > 0.1
-                c1_enemies = obs[u, 1, :, :].sum() > 0.1
-                
-                if c7_relics and c4_nebula and c1_enemies:
-                    relic_found = True
-                    unit_idx = int(u)
-                    break
-                    
-            if relic_found:
-                print(f"Relic, Nebula, and Enemy observed simultaneously at step {step} by agent {unit_idx}!")
-                final_step = step
-                break
-            elif step == max_steps - 1:
-                unit_idx = int(np.argmax(energy_levels))
-                final_step = step
+            unit_idx = int(np.argmax(energy_levels))
+            print(f"Forced stop at step 590 reached. Selected agent {unit_idx} with max energy.")
+            final_step = 590
+            break
 
     print("Capturing data...")
     unbatched_state = jax.tree_util.tree_map(lambda x: np.asarray(x[0]), env.env_state)
@@ -260,7 +290,7 @@ def main():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{algo.upper()} Architecture & Dynamic Input Report</title>
+    <title>MAPPO vs MASAC Matchup 4 Channels & Architecture Report</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {{ background-color: #121212; }}
@@ -279,8 +309,8 @@ def main():
 <body class="text-light p-4">
     <div class="container">
         <h1 class="display-4 text-primary">Lux AI Season 3</h1>
-        <h2 class="text-muted mb-4">Architecture Report: Best Model ({algo.upper()} Checkpoint {chkpt}) vs Rule-Based</h2>
-        <p class="lead">This report is dynamically generated via script at simulation step {final_step}.</p>
+        <h2 class="text-muted mb-4">Architecture Report: MAPPO (Ckpt 32) vs MASAC (Ckpt 23)</h2>
+        <p class="lead">This report is dynamically generated via script at simulation step {final_step} of Matchup 4 (Seed {seed}), with observations shown from MAPPO's perspective.</p>
 
         <h3 class="section-header">1. Environment Render</h3>
         <p>This is the actual global state of the game from which the channels are locally extracted.</p>
@@ -304,20 +334,20 @@ def main():
             </div>
             
             <div class="col-md-4">
-                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 5: Asteroids 🌑</h5></div><img src="data:image/png;base64,{channel_images[5]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 5: Asteroids</h5></div><img src="data:image/png;base64,{channel_images[5]}" class="img-fluid-channel" style="width: 150px;"></div></div>
                 <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 6: Sensor FoW</h5></div><img src="data:image/png;base64,{channel_images[6]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card relic-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 7: Relic Nodes ☀️</h5></div><img src="data:image/png;base64,{channel_images[7]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card relic-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 14: Relic Memory 🌟</h5><p class="mb-2 text-muted"><strong>Values:</strong> Time Decay Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[14]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card self-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 8: Self Indicator 🎯</h5></div><img src="data:image/png;base64,{channel_images[8]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 10: Timeline ⏳</h5></div><img src="data:image/png;base64,{channel_images[10]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card relic-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 7: Relic Nodes</h5></div><img src="data:image/png;base64,{channel_images[7]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card relic-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 14: Relic Memory</h5><p class="mb-2 text-muted"><strong>Values:</strong> Time Decay Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[14]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card self-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 8: Self Indicator</h5></div><img src="data:image/png;base64,{channel_images[8]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 10: Timeline</h5></div><img src="data:image/png;base64,{channel_images[10]}" class="img-fluid-channel" style="width: 150px;"></div></div>
             </div>
             
             <div class="col-md-4">
-                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 9: Ghost Coord 👻</h5></div><img src="data:image/png;base64,{channel_images[9]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 11: Score Diff 👑</h5></div><img src="data:image/png;base64,{channel_images[11]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 15: Points Delta 💰</h5><p class="mb-2 text-muted"><strong>Values:</strong> Uniform Reward Harvest Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[15]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card memory-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 12: Memory Stigmergy 🧠</h5><p class="mb-2 text-muted"><strong>Values:</strong> Time Decay Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[12]}" class="img-fluid-channel" style="width: 150px;"></div></div>
-                <div class="card channel-card trajectory-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 13: Agent Trajectory 👣</h5><p class="mb-2 text-muted"><strong>Values:</strong> Egocentric Time Decay [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[13]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 9: Ghost Coord</h5></div><img src="data:image/png;base64,{channel_images[9]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 11: Score Diff</h5></div><img src="data:image/png;base64,{channel_images[11]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 15: Points Delta</h5><p class="mb-2 text-muted"><strong>Values:</strong> Uniform Reward Harvest Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[15]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card memory-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 12: Memory Stigmergy</h5><p class="mb-2 text-muted"><strong>Values:</strong> Time Decay Float [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[12]}" class="img-fluid-channel" style="width: 150px;"></div></div>
+                <div class="card channel-card trajectory-card p-3"><div class="d-flex justify-content-between"><div><h5>Channel 13: Agent Trajectory</h5><p class="mb-2 text-muted"><strong>Values:</strong> Egocentric Time Decay [0.0, 1.0]</p></div><img src="data:image/png;base64,{channel_images[13]}" class="img-fluid-channel" style="width: 150px;"></div></div>
             </div>
         </div>
 

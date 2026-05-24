@@ -1,7 +1,5 @@
-import sys
 import os
-import argparse
-import pandas as pd
+import sys
 import numpy as np
 import torch
 import hydra
@@ -53,7 +51,6 @@ def load_policy(algo, checkpoint_path):
         return experiment.algorithm.get_policy_for_collection(), experiment.test_env
 
 def unbatch_jax_tree(tree, index=0):
-    """Slices a batched JAX PyTree to get a single item, handling scalars."""
     def _slice(x):
         try:
             if hasattr(x, 'shape') and len(x.shape) > 0:
@@ -66,23 +63,24 @@ def unbatch_jax_tree(tree, index=0):
             return x
     return jax.tree_util.tree_map(_slice, tree)
 
-def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, seed, output_path):
+def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, milestone_idx, seed, output_path):
     print(f"Loading {algo_a.upper()} (Ckpt {ckpt_a})...")
     path_a = get_checkpoint_path(algo_a, ckpt_a)
+    if not path_a:
+        raise FileNotFoundError(f"Checkpoint for {algo_a} at index {ckpt_a} not found.")
     p0_policy, env = load_policy(algo_a, path_a)
     
     print(f"Loading {algo_b.upper()} (Ckpt {ckpt_b})...")
     path_b = get_checkpoint_path(algo_b, ckpt_b)
+    if not path_b:
+        raise FileNotFoundError(f"Checkpoint for {algo_b} at index {ckpt_b} not found.")
     p1_policy, _ = load_policy(algo_b, path_b)
     
     print(f"Running Match (Seed {seed})...")
     
-    # We must force batch size 1 internally by manually slicing if needed, 
-    # but the config overrides evaluation_episodes=1 so it's batch=1.
-    
     base_lux = env.base_env
 
-    # Fresh reset to avoid BenchMARL/hydra dummy reset state pollution
+    # Fresh reset
     base_lux._set_seed(SEED_NUMBER)
     if hasattr(base_lux, "env_state"):
         del base_lux.env_state
@@ -111,8 +109,6 @@ def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, seed, output_path):
     
     t_ids_np = base_lux.team_ids.cpu().numpy()
     opp_team_ids = 1 - t_ids_np
-    team0_idx = int(t_ids_np[0])
-    team1_idx = int(opp_team_ids[0])
     
     tracker = LuxKPITracker(batch_size=1)
     
@@ -126,7 +122,7 @@ def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, seed, output_path):
     # Store initial params
     env_params = unbatch_jax_tree(base_lux.env_params, 0)
     
-    pbar = tqdm(total=1000, desc=f"Evaluating Matchup")
+    pbar = tqdm(total=750, desc=f"Evaluating Matchup")
     step_idx = 0
     while True:
         # Team 0 Action
@@ -209,7 +205,7 @@ def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, seed, output_path):
         td = td.get("next")
         pbar.update(1)
         step_idx += 1
-        if td["done"].any() or step_idx >= 1000:
+        if td["done"].any() or step_idx >= 750:
             break
             
     print(f"Match complete. Serializing HTML to {output_path}...")
@@ -263,11 +259,11 @@ def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, seed, output_path):
     <link rel="icon" type="image/svg+xml" href="https://s3vis.lux-ai.org/eye.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>Lux Eye S3 Replay - {algo_a.upper()} (Ckpt {ckpt_a}) vs {algo_b.upper()} (Ckpt {ckpt_b}) - Seed {seed}</title>
+    <title>Lux Eye S3 Replay - {algo_a.upper()} vs {algo_b.upper()} - Milestone {milestone_idx}</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
 
     <style>
       body {{
@@ -305,6 +301,37 @@ def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, seed, output_path):
         cursor: pointer;
         background: rgba(15, 15, 20, 0.9);
       }}
+      
+      /* Floating Comparison Legend (Bottom Left - Compact) */
+      #comparison-legend {{
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(15, 15, 20, 0.85);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 8px 12px;
+        z-index: 999999;
+        color: #ffffff;
+        font-family: 'Outfit', -apple-system, sans-serif;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+        font-size: 13px;
+        line-height: 1.3;
+      }}
+      .legend-milestone {{
+        font-weight: 800;
+        color: #ffc107;
+        font-size: 14px;
+        margin-bottom: 2px;
+      }}
+      .legend-checkpoint {{
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 600;
+        color: #e2e8f0;
+      }}
+      
       .hud-header {{
         display: flex;
         justify-content: space-between;
@@ -407,6 +434,12 @@ def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, seed, output_path):
   <body>
     <div id="root"></div>
     
+    <!-- Floating Comparison Legend (Bottom Left) -->
+    <div id="comparison-legend">
+      <div class="legend-milestone">Milestone {milestone_idx}/4</div>
+      <div class="legend-checkpoint">Ckpt {ckpt_a} vs {ckpt_b}</div>
+    </div>
+    
     <div id="kpi-hud" onclick="toggleHUD(event)">
       <div class="hud-collapsed-icon">📊</div>
       <div class="hud-main-content" style="width: 100%;">
@@ -470,21 +503,24 @@ def generate_replay(algo_a, ckpt_a, algo_b, ckpt_b, seed, output_path):
     print("Done!")
 
 if __name__ == "__main__":
+    # 4 evenly spaced milestones spanning checkpoint 1 to checkpoint 40
+    # Step = 13: 1, 14, 27, 40
     matchups = [
-        (1, 1, "performance_analysis/mappo_vs_masac_matchup_1.html"),
-        (11, 8, "performance_analysis/mappo_vs_masac_matchup_2.html"),
-        (22, 16, "performance_analysis/mappo_vs_masac_matchup_3.html"),
-        (32, 23, "performance_analysis/mappo_vs_masac_matchup_4.html")
+        (1, 1, 1, "performance_analysis/mappo_vs_masac_comparison_1.html"),
+        (14, 14, 2, "performance_analysis/mappo_vs_masac_comparison_2.html"),
+        (27, 27, 3, "performance_analysis/mappo_vs_masac_comparison_3.html"),
+        (40, 40, 4, "performance_analysis/mappo_vs_masac_comparison_4.html")
     ]
-    for ckpt_a, ckpt_b, out_path in matchups:
+    for ckpt_a, ckpt_b, milestone, out_path in matchups:
         print("\n" + "="*50)
-        print(f"GENERATING: MAPPO (Ckpt {ckpt_a}) vs MASAC (Ckpt {ckpt_b})")
+        print(f"GENERATING MILESTONE {milestone}/4: MAPPO (Ckpt {ckpt_a}) vs MASAC (Ckpt {ckpt_b})")
         print("="*50)
         generate_replay(
             algo_a="mappo",
             ckpt_a=ckpt_a,
             algo_b="masac",
             ckpt_b=ckpt_b,
+            milestone_idx=milestone,
             seed=SEED_NUMBER,
             output_path=out_path
         )

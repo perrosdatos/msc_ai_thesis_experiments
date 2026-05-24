@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAPPO Training Guide - Lux AI Season 3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: #141b2d;
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.15);
+            --accent: #8b5cf6;
+            --accent-glow: rgba(139, 92, 246, 0.15);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --code-bg: #090d16;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4, h5 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* Header Style */
+        .hero {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0b0f19 100%);
+            padding: 80px 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--panel-border);
+            position: relative;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), var(--accent), transparent);
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            background: linear-gradient(90deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 40px;
+        }
+
+        @media (max-width: 992px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                display: none;
+            }
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            position: sticky;
+            top: 40px;
+            height: fit-content;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .sidebar h3 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .sidebar ul {
+            list-style: none;
+        }
+
+        .sidebar li {
+            margin-bottom: 10px;
+        }
+
+        .sidebar a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            display: block;
+            padding: 5px 0;
+        }
+
+        .sidebar a:hover {
+            color: var(--primary);
+            transform: translateX(4px);
+        }
+
+        /* Main Content */
+        .content {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        .section {
+            margin-bottom: 60px;
+            scroll-margin-top: 40px;
+        }
+
+        .section h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 8px;
+            color: #60a5fa;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section p {
+            margin-bottom: 20px;
+            color: #d1d5db;
+            font-size: 1.05rem;
+        }
+
+        /* Callouts / Alerts */
+        .callout {
+            background: rgba(59, 130, 246, 0.05);
+            border-left: 4px solid var(--primary);
+            border-radius: 4px 12px 12px 4px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+
+        .callout h4 {
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-size: 1.15rem;
+        }
+
+        .callout-success {
+            background: rgba(16, 185, 129, 0.05);
+            border-left-color: var(--success);
+        }
+        .callout-success h4 {
+            color: var(--success);
+        }
+
+        .callout-warning {
+            background: rgba(245, 158, 11, 0.05);
+            border-left-color: var(--warning);
+        }
+        .callout-warning h4 {
+            color: var(--warning);
+        }
+
+        /* Diagrams and Visualization */
+        .diagram-container {
+            background: var(--code-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .diagram-title {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-top: 15px;
+            font-style: italic;
+        }
+
+        /* CTDE Diagram (CSS Styled) */
+        .ctde-schema {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 650px;
+        }
+
+        .schema-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            gap: 20px;
+        }
+
+        .schema-box {
+            flex: 1;
+            background: #1e293b;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .schema-box:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .schema-box.actor {
+            border-color: var(--accent);
+        }
+        .schema-box.actor:hover {
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .schema-box.critic {
+            border-color: var(--success);
+        }
+        .schema-box.critic:hover {
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+        }
+
+        .schema-box h5 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+            color: #fff;
+        }
+
+        .schema-box p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0;
+        }
+
+        .schema-arrow-down {
+            text-align: center;
+            color: var(--primary);
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        /* Math formula rendering styling */
+        .math-block {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.1rem;
+            margin: 20px 0;
+            border-left: 3px solid var(--accent);
+            color: #e2e8f0;
+            overflow-x: auto;
+        }
+
+        /* Code Block */
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            padding: 20px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        code {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #f472b6;
+        }
+
+        pre code {
+            color: #e2e8f0;
+        }
+
+        /* Table Style */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.03);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: rgba(255, 255, 255, 0.01);
+        }
+
+        /* Dynamic Interactive Tabs */
+        .tabs {
+            margin-top: 30px;
+        }
+
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 10px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 12px 20px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Architecture Flow Diagram Styling */
+        .flow-diagram {
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: #111827;
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #1e293b;
+        }
+
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px;
+            background: #1f2937;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .flow-step.critic-step {
+            border-left-color: var(--success);
+        }
+
+        .flow-step.actor-step {
+            border-left-color: var(--accent);
+        }
+
+        .step-num {
+            background: #374151;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .step-info h6 {
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        .step-info p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hero">
+        <h1>MAPPO Training Process: A Pedagogical Guide</h1>
+        <p>Understand the mechanics of Multi-Agent PPO (MAPPO), the CTDE paradigm, and how it is applied in our Lux AI Season 3 project.</p>
+    </div>
+
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <h3>Contents</h3>
+            <ul>
+                <li><a href="#intro">1. From RL to MARL</a></li>
+                <li><a href="#ctde">2. The CTDE Paradigm</a></li>
+                <li><a href="#actor-critic">3. Actor-Critic Architecture</a></li>
+                <li><a href="#flow">4. Architectural Flow Diagram</a></li>
+                <li><a href="#on-policy">5. Why is MAPPO On-Policy?</a></li>
+                <li><a href="#ppo-math">6. Policy Objective & Clipping</a></li>
+                <li><a href="#gae">7. Advantage & GAE</a></li>
+                <li><a href="#lux-example">8. Application in Lux S3</a></li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Section 1: Intro -->
+            <div id="intro" class="section">
+                <h2>1. Transitioning from Single-Agent RL to MARL</h2>
+                <p>In traditional Reinforcement Learning (RL), an agent learns to interact with a Markov Decision Process (MDP) to maximize a scalar return. However, in multi-agent environments like Lux AI, multiple agents interact simultaneously, giving rise to a <strong>Dec-POMDP</strong> (Decentralized Partially Observable Markov Decision Process).</p>
+                <p>MARL introduces three massive challenges:</p>
+                <ul>
+                    <li><strong>Non-stationarity:</strong> From Agent A's perspective, the environment changes as Agent B updates its own policy, breaking basic MDP convergence guarantees.</li>
+                    <li><strong>Partial Observability:</strong> Units only see what falls within their sensor range (Fog of War) and cannot peek at their teammates' exact inputs.</li>
+                    <li><strong>Dimensionality:</strong> The joint action space grows exponentially with the number of agents (\(5^{16}\) possible action combinations for a team of 16 agents with 5 choices each).</li>
+                </ul>
+            </div>
+
+            <!-- Section 2: CTDE -->
+            <div id="ctde" class="section">
+                <h2>2. The CTDE Paradigm (Centralized Training, Decentralized Execution)</h2>
+                <p>CTDE is the standard framework for overcoming non-stationarity during training while keeping the agents autonomous at runtime. The core philosophy is: <em>"Learn with a giant's eyes, act with a local view."</em></p>
+                
+                <div class="diagram-container">
+                    <div class="ctde-schema">
+                        <!-- PHASE 1: Centralized Training -->
+                        <div style="text-align: center; margin-bottom: 5px; color: var(--success); font-weight: 600;">PHASE 1: TRAINING (Centralized)</div>
+                        <div class="schema-row">
+                            <div class="schema-box critic">
+                                <h5>Centralized Critic</h5>
+                                <p>Observes joint global state \(S_t\) (full map, all units' positions) to estimate expected state value \(V(S_t)\).</p>
+                            </div>
+                        </div>
+                        <div class="schema-arrow-down">↑ (Guides policy updates of the Decentralized Actors)</div>
+                        
+                        <!-- PHASE 2: Decentralized Execution -->
+                        <div style="text-align: center; margin-bottom: 5px; color: var(--accent); font-weight: 600;">PHASE 2: EXECUTION (Decentralized)</div>
+                        <div class="schema-row">
+                            <div class="schema-box actor">
+                                <h5>Actor 1 (Ship 1)</h5>
+                                <p>Inputs: Local Obs \(O^1_t\)</p>
+                                <p><strong>Action \(a^1_t\)</strong></p>
+                            </div>
+                            <div class="schema-box actor">
+                                <h5>Actor 2 (Ship 2)</h5>
+                                <p>Inputs: Local Obs \(O^2_t\)</p>
+                                <p><strong>Action \(a^2_t\)</strong></p>
+                            </div>
+                            <div class="schema-box actor">
+                                <h5>Actor \(N\) (Ship \(N\))</h5>
+                                <p>Inputs: Local Obs \(O^N_t\)</p>
+                                <p><strong>Action \(a^N_t\)</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="diagram-title">Figure 1: Information flow in CTDE. The critic is discarded after training; only decentralized actors run during match play.</div>
+                </div>
+
+                <p>During <strong>execution</strong>, we throw away the centralized critic. Each of the 16 units evaluates only its local observation matrix (the 16 channels) to decide its next step.</p>
+            </div>
+
+            <!-- Section 3: Actor-Critic -->
+            <div id="actor-critic" class="section">
+                <h2>3. Actor-Critic Architecture in MAPPO</h2>
+                <p>MAPPO splits agent logic into two main networks (or network heads):</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Attribute</th>
+                            <th>Actor (\(\pi_\theta\))</th>
+                            <th>Critic (\(V_\phi\))</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Goal</strong></td>
+                            <td>Decide the action distribution (Policy). Maps observations to action probabilities.</td>
+                            <td>Evaluate the state. Estimates expected future reward returns from the current state.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Input</strong></td>
+                            <td><strong>Local:</strong> Egocentric observation (e.g. 16 channels of size \(24\times24\)).</td>
+                            <td><strong>Centralized:</strong> Global state \(S_t\) or concatenated observations of all agents.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Usage during Play</strong></td>
+                            <td>Yes. Actively controls the naves.</td>
+                            <td>No. Used only for gradient updates during training.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="callout">
+                    <h4>Shared Policies (Parameters)</h4>
+                    <p>In our Lux AI S3 project, all 16 ships <strong>share the same network parameters for Actor and Critic</strong>. To allow heterogeneous behaviors, egocentric features (like Channel 8: Self Indicator) are added to local observation arrays so naves differentiate their identity.</p>
+                </div>
+            </div>
+
+            <!-- Section 4: Architectural Flow Diagram -->
+            <div id="flow" class="section">
+                <h2>4. Architectural Training Loop & Component Flow</h2>
+                <p>Below is the step-by-step progression of how observations are evaluated, stored, and used to update parameters during the MAPPO training loop:</p>
+
+                <div class="diagram-container">
+                    <div class="flow-diagram">
+                        <div class="flow-step actor-step">
+                            <div class="step-num">1</div>
+                            <div class="step-info">
+                                <h6>Decentralized Rollout Generation</h6>
+                                <p>Actors \(\pi_\theta\) evaluate local matrices \(O^i_t\) to sample actions \(a^i_t\) for all 16 ships in the game.</p>
+                            </div>
+                        </div>
+                        <div class="flow-step">
+                            <div class="step-num">2</div>
+                            <div class="step-info">
+                                <h6>Buffer Collection</h6>
+                                <p>The trajectory buffer stores observations \(O^i_t\), joint global states \(S_t\), actions, and rewards \(R_t\).</p>
+                            </div>
+                        </div>
+                        <div class="flow-step critic-step">
+                            <div class="step-num">3</div>
+                            <div class="step-info">
+                                <h6>State Value Estimation</h6>
+                                <p>The Centralized Critic network \(V_\phi\) maps global states \(S_t\) to state-values \(V_\phi(S_t)\).</p>
+                            </div>
+                        </div>
+                        <div class="flow-step critic-step">
+                            <div class="step-num">4</div>
+                            <div class="step-info">
+                                <h6>GAE Calculation</h6>
+                                <p>Generalized Advantage Estimation (GAE) uses state values to compute advantages \(\hat{A}_t^i\) for each agent.</p>
+                            </div>
+                        </div>
+                        <div class="flow-step actor-step">
+                            <div class="step-num">5</div>
+                            <div class="step-info">
+                                <h6>PPO Surrogate Update</h6>
+                                <p>The Actor's parameters \(\theta\) are optimized by maximizing the clipped advantage loss function.</p>
+                            </div>
+                        </div>
+                        <div class="flow-step critic-step">
+                            <div class="step-num">6</div>
+                            <div class="step-info">
+                                <h6>Critic Gradient Step</h6>
+                                <p>Critic parameters \(\phi\) minimize Mean Squared Error (MSE) against actual rewards. Rollout buffer is emptied.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="diagram-title">Figure 2: Sequence of updates during a single training epoch in MAPPO.</div>
+                </div>
+            </div>
+
+            <!-- Section 5: On/Off Policy -->
+            <div id="on-policy" class="section">
+                <h2>5. Why MAPPO is On-Policy (vs. Off-Policy SAC/QMIX)</h2>
+                <p>MAPPO is an <strong>On-Policy</strong> algorithm, meaning it updates its parameters using only data gathered by its active policy.</p>
+                
+                <div class="tabs">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" onclick="openTab(event, 'on-policy-tab')">On-Policy Methods (MAPPO)</button>
+                        <button class="tab-btn" onclick="openTab(event, 'off-policy-tab')">Off-Policy Methods (MASAC/QMIX)</button>
+                    </div>
+                    
+                    <div id="on-policy-tab" class="tab-content active">
+                        <p>On-policy algorithms evaluate and optimize the exact policy used to sample data.</p>
+                        <ul>
+                            <li><strong>Pipeline:</strong> Sample transitions using active policy \(\pi_\theta \rightarrow\) update \(\pi_\theta\) directly \(\rightarrow\) <strong>immediately discard the data</strong>.</li>
+                            <li><strong>Pros:</strong> High stability, direct optimization step, mathematically stable under changing opponent dynamics.</li>
+                            <li><strong>Cons:</strong> Highly sample-inefficient. Millions of steps are needed since past experiences are never re-evaluated.</li>
+                        </ul>
+                    </div>
+                    
+                    <div id="off-policy-tab" class="tab-content">
+                        <p>Off-policy algorithms learn from historical data sampled by older policies, typically stored in a Replay Buffer.</p>
+                        <ul>
+                            <li><strong>Pipeline:</strong> Write transitions to a large Replay Buffer \(\rightarrow\) sample random batches from history \(\rightarrow\) update \(\pi_\theta\).</li>
+                            <li><strong>Pros:</strong> High sample efficiency. Can reuse optimal trajectories over and over.</li>
+                            <li><strong>Cons:</strong> Higher training instability in MARL, as historical transitions might contain obsolete opponent actions.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 6: PPO Math -->
+            <div id="ppo-math" class="section">
+                <h2>6. The PPO Objective and Clipping Trick</h2>
+                <p>To prevent updates that are too large and could crash the policy, PPO defines a probability ratio \(r_t(\theta)\):</p>
+                <div class="math-block">
+                    \[r_t(\theta) = \frac{\pi_\theta(a_t | s_t)}{\pi_{\theta_{old}}(a_t | s_t)}\]
+                </div>
+                <p>The Actor's clipped surrogate objective is:</p>
+                <div class="math-block">
+                    \[L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min\left( r_t(\theta) \hat{A}_t, \, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right]
+                </div>
+                <p>Where \(\epsilon\) is the clipping boundary (usually `0.2`). If the policy tries to update more than \(20\%\), the loss gradient is clipped to zero, protecting training stability.</p>
+
+                <div class="callout callout-warning">
+                    <h4>Critic Loss</h4>
+                    <p>The Centralized Critic is trained separately to minimize Mean Squared Error (MSE) against the actual cumulative returns \(G_t\):</p>
+                    <div class="math-block">
+                        \[L^{VF}(\phi) = (V_\phi(S_t) - G_t)^2\]
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 7: GAE -->
+            <div id="gae" class="section">
+                <h2>7. Advantage Estimation and GAE</h2>
+                <p>The Advantage \(\hat{A}_t\) represents if a specific action performed better or worse than the average expected return. It is estimated using the TD-Error:</p>
+                <div class="math-block">
+                    \[\delta_t = R_t + \gamma V_\phi(S_{t+1}) - V_\phi(S_t)\]
+                </div>
+                <p>MAPPO uses **Generalized Advantage Estimation (GAE)** to balance variance and bias:</p>
+                <div class="math-block">
+                    \[\hat{A}_t = \sum_{l=0}^{\infty} (\gamma \lambda)^l \delta_{t+l}\]
+                </div>
+                <p>Typical parameters (\(\lambda = 0.95\), \(\gamma = 0.99\)) help stabilize advantages in high-dimensional partially observable games like Lux.</p>
+            </div>
+
+            <!-- Section 8: Lux Example -->
+            <div id="lux-example" class="section">
+                <h2>8. Applying MAPPO to Lux AI Season 3</h2>
+                <p>In this repository, MAPPO is configured via the **BenchMARL** framework. Our models use convolutional layers (`cnn_lux_16ch`) to extract spatial observations.</p>
+
+                <div class="callout callout-success">
+                    <h4>Project Training Pipeline Details</h4>
+                    <ul>
+                        <li><strong>Shared CNN Features:</strong> In `BenchMARL/benchmarl/models/layers/cnn_lux_16ch.py`, the network extracts features from a \(24\times24\) grid, maps them through CNN channels, and projects them to actions.</li>
+                        <li><strong>Action Masking:</strong> To prevent ships from moving off-grid or executing invalid steps, the environment feeds an action mask directly to the actor's forward pass, shutting down probability paths for invalid commands.</li>
+                    </ul>
+                </div>
+
+                <p>Now you have a comprehensive understanding of the theory and implementation behind MAPPO in cooperative multi-agent tasks!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tab-btn");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+    </script>
+</body>
+</html>
